@@ -180,6 +180,18 @@ class TabularDataTab(QWidget):
             column_headers = [f"WB{i+1}" for i in range(num_columns)]
         elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
             column_headers = [f"BR{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Pipes":
+            column_headers = [f"PIPE{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Spillway":
+            column_headers = [f"SP{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Gates":
+            column_headers = [f"GATE{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Pumps":
+            column_headers = [f"PUMP{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Internal Weirs":
+            column_headers = [f"IW{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Withdrawals":
+            column_headers = [f"WD{i+1}" for i in range(num_columns)]
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -624,10 +636,136 @@ class CompactApp(QWidget):
                 "type": "tabular",
                 "rows": [
                     {"label": "NSTR", "type": "numeric",  "description": "Number of branch outlet structures"},
-                    {"label": "DYNSTRUC", "type": "checkbox", "description": "Use dynamic centerline elevation for the structure, "
-                    "usually the centerline elevation is fixed and specified with ESTR. If this is ON, the model will read a separate file for each branch called dynselevX.npt where X is the branch number."}                
+                    {"label": "DYNSTRUC", "type": "checkbox", "description": "Use dynamic centerline elevation for the structure, \
+                    usually the centerline elevation is fixed and specified with ESTR. If this is ON, the model will read a separate file for each branch called dynselevX.npt where X is the branch number."}                
                 ],
                 "columns_from": "NBR"
+            },
+            "Pipes": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IUPI", "type": "numeric", "description": "Upstream segment number"},
+                    {"label": "IDPI", "type": "numeric", "description": "Downstream segment number"},
+                    {"label": "EUPI", "type": "numeric", "decimal_places": 3, "description": "Elevation upstream invert, m"},
+                    {"label": "EDPI", "type": "numeric", "decimal_places": 3, "description": "Elevation downstream invert, m"},
+                    {"label": "WPI", "type": "numeric", "decimal_places": 3, "description": "Pipe diameter, m"},
+                    {"label": "DLXPI", "type": "numeric", "decimal_places": 3, "description": "Pipe length, m"},
+                    {"label": "FPI", "type": "numeric", "decimal_places": 3, "description": "friction factor (Mannings)"},
+                    {"label": "FMINPI", "type": "numeric", "decimal_places": 3, "description": "minor losses friction factor (Mannings)"},
+                    {"label": "WTHLC", "type": "dropdown", "options": ["DOWN", "LAT"], "description": "DOWN or LAT, withdrawal control for at end of segment or middle"},
+                    {"label": "DYNPIPE", "type": "checkbox", "description": "Dynamic pipe read input file, ON or OFF"},
+                    {"label": "PUPIC", "type": "dropdown", "options": ["DISTR", "SPECIFY", "DENSITY"], "description": "PipeUp inflow: DISTR, SPECIFY, DENSITY"},
+                    {"label": "ETUPI", "type": "numeric", "decimal_places": 3, "description": "PipeUp Elevation top in m if SPECIFY"},
+                    {"label": "EBUPI", "type": "numeric", "decimal_places": 3, "description": "PipeUp Elevation bottom in m if SPECIFY"},
+                    {"label": "KTUPI", "type": "numeric", "description": "PipeUp Selective withdrawal top layer, Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBUPI", "type": "numeric", "description": "PipeUp Selective withdrawal bottom layer, Bottom layer below which selective withdrawal will not occur"},
+                    {"label": "PDPIC", "type": "dropdown", "options": ["DISTR", "SPECIFY", "DENSITY"], "description": "PipeDown inflow: DISTR, SPECIFY, DENSITY"},
+                    {"label": "ETDPI", "type": "numeric", "decimal_places": 3, "description": "PipeDown Elevation top in m if SPECIFY"},
+                    {"label": "EBDPI", "type": "numeric", "decimal_places": 3, "description": "PipeDown Elevation bottom in m if SPECIFY"},
+                    {"label": "KTDPI", "type": "numeric", "description": "PipeDown Selective withdrawal top layer, Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBDPI", "type": "numeric", "description": "PipeDown Selective withdrawal bottom layer, Bottom layer below which selective withdrawal will not occur"}
+                ],
+                "columns_from": "NPI"
+            },
+            "Spillway": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IUSP", "type": "numeric", "description": "Upstream segment number, spillway segment location"},
+                    {"label": "IDSP", "type": "numeric", "description": "Downstream segment number, downstream segment spillway outflow enters"},
+                    {"label": "ESP", "type": "numeric", "decimal_places": 3, "description": "Spillway elevation (crest), m"},
+                    {"label": "BTSP1", "type": "numeric", "decimal_places": 3, "description": "Empirical coefficient for free-flowing conditions"},
+                    {"label": "BTSP2", "type": "numeric", "decimal_places": 3, "description": "Empirical coefficient for submerged conditions"},
+                    {"label": "LATSPC", "type": "dropdown", "options": ["DOWN", "LAT"], "description": "Downstream or lateral withdrawal, DOWN or LAT"},
+                    {"label": "PUSPC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter into the upstream spillway segment, DISTR, DENSITY, or SPECIFY"},
+                    {"label": "ETUSP", "type": "numeric", "description": "Top elevation spillway inflows enter using SPECIFY option, m"},
+                    {"label": "EBUSP", "type": "numeric", "description": "Bottom elevation spillway inflows enter using SPECIFY option, m"},
+                    {"label": "KTUSP", "type": "numeric", "decimal_places": 3, "description": "Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBUSP", "type": "numeric", "decimal_places": 3, "description": "Bottom layer below which selective withdrawal will not occur"},
+                    {"label": "PDSPC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter into the downstream spillway segment, DISTR, DENSITY, or SPECIFY"},
+                    {"label": "ETDSP", "type": "numeric", "decimal_places": 3, "description": "Top elevation spillway inflows enter using SPECIFY option, m"},
+                    {"label": "EBDSP", "type": "numeric", "decimal_places": 3, "description": "Bottom elevation spillway inflows enter using SPECIFY option, m"},
+                    {"label": "KTDSP", "type": "numeric", "description": "Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBDSP", "type": "numeric", "description": "Bottom layer below which selective withdrawal will not occur"},
+                    {"label": "GASSPC", "type": "checkbox", "description": "Dissolved gas computations ON or OFF"},
+                    {"label": "EQSP", "type": "numeric", "description": "Equation number for computing dissolved gas"},
+                    {"label": "AGASSP", "type": "numeric", "decimal_places": 3, "description": "a empirical coefficient"},
+                    {"label": "BGASSP", "type": "numeric", "decimal_places": 3, "description": "b empirical coefficient"},
+                    {"label": "CGASSP", "type": "numeric", "decimal_places": 3, "description": "c empirical coefficient"}
+                ],
+                "columns_from": "NSP"
+            },
+            "Gates": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IUGT", "type": "numeric", "description": "Upstream segment number"},
+                    {"label": "IDGT", "type": "numeric", "description": "Downstream segment number"},
+                    {"label": "EGT", "type": "numeric", "decimal_places": 3, "description": "Gate elevation, m"},
+                    {"label": "A1GT", "type": "numeric", "decimal_places": 3, "description": "a1 coefficient in gate equation for free flowing conditions"},
+                    {"label": "B1GT", "type": "numeric", "decimal_places": 3, "description": "b1 coefficient in gate equation for free flowing conditions"},
+                    {"label": "G1GT", "type": "numeric", "decimal_places": 3, "description": "gamma1 coefficient for free flowing conditions"},
+                    {"label": "A2GT", "type": "numeric", "decimal_places": 3, "description": "a2 coefficient in gate equation for submerged conditions"},
+                    {"label": "B2GT", "type": "numeric", "decimal_places": 3, "description": "b2 coefficient in gate equation for submerged conditions"},
+                    {"label": "G2GT", "type": "numeric", "decimal_places": 3, "description": "gamma2 coefficient for submerged conditions"},
+                    {"label": "LATGTC", "type": "dropdown", "options": ["DOWN", "LAT"], "description": "Downstream or lateral withdrawal at DOWN or LAT"},
+                    {"label": "PUGTC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter the upstream gate segment, DISTR, DENSITY, or SPECIFY"},
+                    {"label": "ETUGT", "type": "numeric", "decimal_places": 3, "description": "Top elevation gate inflows enter using the SPECIFY option, m"},
+                    {"label": "EBUGT", "type": "numeric", "decimal_places": 3, "description": "Bottom elevation gate inflows enter using the SPECIFY option, m"},
+                    {"label": "KTUGT", "type": "numeric", "description": "Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBUGT", "type": "numeric", "description": "Bottom layer below which selective withdrawal will not occur"},
+                    {"label": "PDGTC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter the downstream gate segment, DISTR, DENSITY, or SPECIFY"},
+                    {"label": "ETDGT", "type": "numeric", "decimal_places": 3, "description": "Top elevation gate inflows enter using the SPECIFY option, m"},
+                    {"label": "EBDGT", "type": "numeric", "decimal_places": 3, "description": "Bottom elevation gate inflows enter using the SPECIFY option, m"},
+                    {"label": "KTDGT", "type": "numeric", "description": "Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBDGT", "type": "numeric", "description": "Bottom layer below which selective withdrawal will not occur"},
+                    {"label": "DYNGTC", "type": "dropdown", "options": ["B", "ZGT", "FLOW"], "description": "Either B, ZGT, or FLOW"},
+                    {"label": "GASGTC", "type": "checkbox", "description": "Dissolved gas computations ON or OFF"},
+                    {"label": "EQGT", "type": "numeric", "description": "Equation number for computing dissolved gas"},
+                    {"label": "AGASGT", "type": "numeric", "decimal_places": 3, "description": "a empirical coefficient"},
+                    {"label": "BGASGT", "type": "numeric", "decimal_places": 3, "description": "b empirical coefficient"},
+                    {"label": "CGASGT", "type": "numeric", "decimal_places": 3, "description": "c empirical coefficient"}
+                ],
+                "columns_from": "NGT"
+            },
+            "Pumps": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IUPU", "type": "numeric", "description": "Upstream segment number where water is withdrawn"},
+                    {"label": "IDPU", "type": "numeric", "description": "Downstream segment number where water enters"},
+                    {"label": "EPU", "type": "numeric", "decimal_places": 3, "description": "Elevation of pump, m"},
+                    {"label": "STRTPU", "type": "numeric", "decimal_places": 3, "description": "Starting day of pumping Julian day"},
+                    {"label": "ENDPU", "type": "numeric", "decimal_places": 3, "description": "Ending day of pumping Julian day"},
+                    {"label": "EONPU", "type": "numeric", "decimal_places": 3, "description": "Pump starting elevation, m"},
+                    {"label": "EOFFPU", "type": "numeric", "decimal_places": 3, "description": "Pump stopping elevation, m"},
+                    {"label": "QPU", "type": "numeric", "decimal_places": 3, "description": "Pump flow rate, m3/s"},
+                    {"label": "LATPUC", "type": "dropdown", "options": ["DOWN", "LAT"], "description": "Downstream or lateral withdrawal, DOWN or LAT"},
+                    {"label": "DYNPUM", "type": "checkbox", "description": "Dynamic pump control ON or OFF"},
+                    {"label": "PPUC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter into the downstream pump segment, DISTR, DENSITY, or SPECIFY"},
+                    {"label": "ETPU", "type": "numeric", "decimal_places": 3, "description": "Top elevation inflow enters using SPECIFY option, m"},
+                    {"label": "EBPU", "type": "numeric", "decimal_places": 3, "description": "Bottom elevation inflow enters using SPECIFY option, m"},
+                    {"label": "KTPU", "type": "numeric", "description": "Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBPU", "type": "numeric", "description": "Bottom layer below which selective withdrawal will not occur"}
+                ],
+                "columns_from": "NPU"
+            },
+            "Internal Weirs": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IWR", "type": "numeric", "description": "Internal weir segment number (RHS)"},
+                    {"label": "KTWR", "type": "numeric", "description": "Internal weir layer top"},
+                    {"label": "KBWR", "type": "numeric", "description": "Internal weir layer bottom"}
+                ],
+                "columns_from": "NIW"
+            },
+            "Withdrawals": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "WDIC", "type": "checkbox", "description": "Withdrawal interpolation, ON or OFF"},
+                    {"label": "IWD", "type": "numeric", "description": "Withdrawal outflow segment"},
+                    {"label": "EWD", "type": "numeric", "decimal_places": 3, "description": "Withdrawal centerline elevation"},
+                    {"label": "KTWD", "type": "numeric", "description": "Withdrawal selective withdrawal top, Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBWD", "type": "numeric", "description": "Withdrawal selective withdrawal bottom, Bottom layer below which selective withdrawal will not occur"}
+                ],
+                "columns_from": "NWD"
             }
         }
         self.initUI()
@@ -679,6 +817,12 @@ class CompactApp(QWidget):
         try:
             nwb_value = 0
             nbr_value = 0
+            npi_value = 0
+            nsp_value = 0
+            ngt_value = 0
+            npu_value = 0
+            niw_value = 0
+            nwd_value = 0
             grid_tab = self.tabs.get("Grid Dimensions and General Settings")
             if grid_tab:
                 for label, value in grid_tab.get_data():
@@ -693,6 +837,41 @@ class CompactApp(QWidget):
                         except (ValueError, TypeError):
                             pass
 
+            # Read NPI from Inflow/Outflow Dimensions tab for Pipes columns
+            inflow_tab = self.tabs.get("Inflow/Outflow Dimensions")
+            if inflow_tab:
+                for label, value in inflow_tab.get_data():
+                    if label == "NPI" and value:
+                        try:
+                            npi_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NSP" and value:
+                        try:
+                            nsp_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NGT" and value:
+                        try:
+                            ngt_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NPU" and value:
+                        try:
+                            npu_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NIW" and value:
+                        try:
+                            niw_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NWD" and value:
+                        try:
+                            nwd_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+ 
             # Sync all NWB-dependent tabs
             nwb_tabs = ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea",
                         "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]
@@ -710,6 +889,60 @@ class CompactApp(QWidget):
                 if tab and isinstance(tab, TabularDataTab):
                     current_data = tab.get_data()
                     tab.set_columns(max(1, nbr_value))  # Ensure at least 1 column
+                    tab.set_data(current_data)
+
+            # Sync all NPI-dependent tabs
+            npi_tabs = ["Pipes"]
+            for tab_name in npi_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, npi_value))
+                    tab.set_data(current_data)
+
+            # Sync all NSP-dependent tabs
+            nsp_tabs = ["Spillway"]
+            for tab_name in nsp_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, nsp_value))
+                    tab.set_data(current_data)
+
+            # Sync all NGT-dependent tabs
+            ngt_tabs = ["Gates"]
+            for tab_name in ngt_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, ngt_value))
+                    tab.set_data(current_data)
+
+            # Sync all NPU-dependent tabs
+            npu_tabs = ["Pumps"]
+            for tab_name in npu_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, npu_value))
+                    tab.set_data(current_data)
+
+            # Sync all NIW-dependent tabs
+            niw_tabs = ["Internal Weirs"]
+            for tab_name in niw_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, niw_value))
+                    tab.set_data(current_data)
+
+            # Sync all NWD-dependent tabs
+            nwd_tabs = ["Withdrawals"]
+            for tab_name in nwd_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, nwd_value))
                     tab.set_data(current_data)
 
             # After NBR-dependent sync, adjust Structures tab rows dynamically based on max NSTR
@@ -826,6 +1059,18 @@ class CompactApp(QWidget):
                                     headers = [f"WB{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
                                     headers = [f"BR{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Pipes":
+                                    headers = [f"PIPE{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Spillway":
+                                    headers = [f"SP{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Gates":
+                                    headers = [f"GATE{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Pumps":
+                                    headers = [f"PUMP{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Internal Weirs":
+                                    headers = [f"IW{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Withdrawals":
+                                    headers = [f"WD{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 else:
                                     headers = []
                                 writer.writerow(headers)
