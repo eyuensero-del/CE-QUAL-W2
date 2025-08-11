@@ -180,6 +180,17 @@ class TabularDataTab(QWidget):
             column_headers = [f"WB{i+1}" for i in range(num_columns)]
         elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
             column_headers = [f"BR{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Tributary":
+            # Build headers TR# (Name) using TRNAME row if present
+            names = [""] * num_columns
+            # Try to locate TRNAME row index
+            trname_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "TRNAME"), None)
+            if trname_index is not None:
+                for col_index in range(num_columns):
+                    name_widget = self.table.cellWidget(trname_index, col_index)
+                    if isinstance(name_widget, QLineEdit):
+                        names[col_index] = name_widget.text().strip()
+            column_headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Pipes":
             column_headers = [f"PIPE{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Spillway":
@@ -245,11 +256,40 @@ class TabularDataTab(QWidget):
                     self.table.setCellWidget(row_index, col_index, spinbox)
                 elif cell_type == "text":
                     line_edit = QLineEdit()
+                    # If Tributary TRNAME, update headers on text change
+                    if self.tab_name == "Tributary" and row_def.get("label") == "TRNAME":
+                        try:
+                            def refresh_headers():
+                                self.set_columns(self.table.columnCount())
+                            line_edit.textChanged.connect(refresh_headers)
+                        except Exception:
+                            pass
                     self.table.setCellWidget(row_index, col_index, line_edit)
                 elif cell_type == "dropdown":
                     combo_box = QComboBox()
                     combo_box.addItems(row_def.get("options", []))
                     self.table.setCellWidget(row_index, col_index, combo_box)
+                elif cell_type == "file":
+                    button = QPushButton("Browse...")
+                    def make_handler(r=row_index, c=col_index, b=button):
+                        def handler():
+                            start_dir = os.path.dirname(os.path.abspath(__file__))
+                            file_path, _ = QFileDialog.getOpenFileName(self, "Select File", start_dir, "All Files (*)")
+                            if file_path:
+                                try:
+                                    base_dir = start_dir
+                                    rel_path = os.path.relpath(file_path, base_dir)
+                                    if not rel_path.startswith(".."):
+                                        display_path = f"./{rel_path}"
+                                    else:
+                                        display_path = file_path
+                                except Exception:
+                                    display_path = file_path
+                                b.setText(display_path)
+                                b.setProperty("file_path", file_path)
+                        return handler
+                    button.clicked.connect(make_handler())
+                    self.table.setCellWidget(row_index, col_index, button)
 
     def _on_numeric_value_changed(self, *args):
         sender_widget = self.sender()
@@ -320,6 +360,11 @@ class TabularDataTab(QWidget):
                     combo_box = self.table.cellWidget(row_index, col_index)
                     value = combo_box.currentText() if combo_box else ""
                     row_data.append(value)
+                elif cell_type == "file":
+                    button = self.table.cellWidget(row_index, col_index)
+                    # store the displayed path (which may be relative)
+                    value = button.text() if button else ""
+                    row_data.append(value)
             data.append(row_data)
         return data
 
@@ -360,6 +405,10 @@ class TabularDataTab(QWidget):
                             combo_box = self.table.cellWidget(row_index, col_index)
                             if combo_box:
                                 combo_box.setCurrentText(value)
+                        elif cell_type == "file":
+                            button = self.table.cellWidget(row_index, col_index)
+                            if button:
+                                button.setText(value)
 
     def clear_fields(self):
         """Clears all fields in the table based on their type."""
@@ -382,6 +431,11 @@ class TabularDataTab(QWidget):
                     combo_box = self.table.cellWidget(row_index, col_index)
                     if combo_box:
                         combo_box.setCurrentIndex(0)
+                elif cell_type == "file":
+                    button = self.table.cellWidget(row_index, col_index)
+                    if button:
+                        button.setText("") # Clear the button text
+                        button.setProperty("file_path", None) # Clear the file path property
 
 class CompactApp(QWidget):
     APP_STATE_FILE = "app_state.json"
@@ -641,6 +695,21 @@ class CompactApp(QWidget):
                 ],
                 "columns_from": "NBR"
             },
+            "Tributary": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "TRNAME", "type": "text", "description": "Tributary name used in column header"},
+                    {"label": "PTRC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFIY"], "description": "Placeholder: PTRC description"},
+                    {"label": "TRIC", "type": "checkbox", "description": "Placeholder: TRIC description"},
+                    {"label": "ITR", "type": "numeric", "description": "Placeholder: ITR description"},
+                    {"label": "ELTRT", "type": "numeric", "decimal_places": 2, "description": "Placeholder: ELTRT description"},
+                    {"label": "ELTRB", "type": "numeric", "decimal_places": 2, "description": "Placeholder: ELTRB description"},
+                    {"label": "QTRFN", "type": "file", "description": "Placeholder: QTRFN local path"},
+                    {"label": "TTRFN", "type": "file", "description": "Placeholder: TTRFN local path"},
+                    {"label": "CTRFN", "type": "file", "description": "Placeholder: CTRFN local path"}
+                ],
+                "columns_from": "NTR"
+            },
             "Pipes": {
                 "type": "tabular",
                 "rows": [
@@ -678,7 +747,7 @@ class CompactApp(QWidget):
                     {"label": "LATSPC", "type": "dropdown", "options": ["DOWN", "LAT"], "description": "Downstream or lateral withdrawal, DOWN or LAT"},
                     {"label": "PUSPC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter into the upstream spillway segment, DISTR, DENSITY, or SPECIFY"},
                     {"label": "ETUSP", "type": "numeric", "description": "Top elevation spillway inflows enter using SPECIFY option, m"},
-                    {"label": "EBUSP", "type": "numeric", "description": "Bottom elevation spillway inflows enter using SPECIFY option, m"},
+                    {"label": "EBUSP", "type": "numeric", "decimal_places": 3, "description": "Bottom elevation spillway inflows enter using SPECIFY option, m"},
                     {"label": "KTUSP", "type": "numeric", "decimal_places": 3, "description": "Top layer above which selective withdrawal will not occur"},
                     {"label": "KBUSP", "type": "numeric", "decimal_places": 3, "description": "Bottom layer below which selective withdrawal will not occur"},
                     {"label": "PDSPC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter into the downstream spillway segment, DISTR, DENSITY, or SPECIFY"},
@@ -891,6 +960,26 @@ class CompactApp(QWidget):
                     tab.set_columns(max(1, nbr_value))  # Ensure at least 1 column
                     tab.set_data(current_data)
 
+            # Sync NTR-dependent tabs
+            ntr_tabs = ["Tributary"]
+            # Read NTR from Inflow/Outflow Dimensions
+            try:
+                inflow_tab = self.tabs.get("Inflow/Outflow Dimensions")
+                ntr_value = 0
+                if inflow_tab and isinstance(inflow_tab, UserDataTab):
+                    for label, value in inflow_tab.get_data():
+                        if label == "NTR" and value:
+                            ntr_value = int(value)
+                            break
+            except Exception:
+                ntr_value = 0
+            for tab_name in ntr_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, ntr_value))
+                    tab.set_data(current_data)
+
             # Sync all NPI-dependent tabs
             npi_tabs = ["Pipes"]
             for tab_name in npi_tabs:
@@ -1059,6 +1148,17 @@ class CompactApp(QWidget):
                                     headers = [f"WB{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
                                     headers = [f"BR{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Tributary":
+                                    # Pull TRNAME values from the first row of data
+                                    num_cols = len(tabular_data[0]) - 1
+                                    names = []
+                                    if len(tabular_data) > 0:
+                                        trname_row = tabular_data[0]
+                                        for i in range(num_cols):
+                                            raw = trname_row[i+1] if i+1 < len(trname_row) else ""
+                                            raw = raw.strip()
+                                            names.append(raw)
+                                    headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_cols)]
                                 elif tab_name == "Pipes":
                                     headers = [f"PIPE{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name == "Spillway":
@@ -1075,7 +1175,10 @@ class CompactApp(QWidget):
                                     headers = []
                                 writer.writerow(headers)
                                 
-                                for row_data in tabular_data:
+                                for row_index, row_data in enumerate(tabular_data):
+                                    # Skip the TRNAME row for Tributary outputs if desired? Requirement says only headers include names
+                                    if tab_name == "Tributary" and row_index == 0:
+                                        continue
                                     writer.writerow(row_data[1:])
                         writer.writerow([])
                 
