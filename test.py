@@ -183,6 +183,15 @@ class TabularDataTab(QWidget):
         # Populate each cell with the appropriate widget type
         for row_index, row_def in enumerate(self.row_definitions):
             for col_index in range(num_columns):
+                # Clear any existing widget or item to avoid mixed cell content when types change
+                try:
+                    self.table.removeCellWidget(row_index, col_index)
+                except Exception:
+                    pass
+                try:
+                    self.table.takeItem(row_index, col_index)
+                except Exception:
+                    pass
                 cell_type = row_def.get("type", "checkbox")
                 if cell_type == "checkbox":
                     item = QTableWidgetItem()
