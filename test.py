@@ -215,6 +215,7 @@ class TabularDataTab(QWidget):
                     # If this is the Structures tab and this numeric row is NSTR, connect signals for real-time update
                     if self.tab_name == "Structures" and row_def.get("label") == "NSTR":
                         try:
+                            # Connect to a lightweight updater that only adjusts dynamic rows
                             spinbox.valueChanged.connect(self.structureChanged.emit)
                         except Exception:
                             pass
@@ -651,7 +652,7 @@ class CompactApp(QWidget):
         
         # Connect real-time structure changes from the Structures tab to sync immediately
         if isinstance(self.tabs.get("Structures"), TabularDataTab):
-            self.tabs["Structures"].structureChanged.connect(self.sync_tabs)
+            self.tabs["Structures"].structureChanged.connect(self.update_structures_dynamic_rows)
         
         self.tab_list.currentRowChanged.connect(self.sync_tabs)
 
@@ -712,89 +713,90 @@ class CompactApp(QWidget):
                     tab.set_data(current_data)
 
             # After NBR-dependent sync, adjust Structures tab rows dynamically based on max NSTR
-            structures_tab = self.tabs.get("Structures")
-            if structures_tab and isinstance(structures_tab, TabularDataTab):
-                try:
-                    # Compute maximum NSTR across branches (row labeled 'NSTR')
-                    max_nstr = 0
-                    # Find index of NSTR row in current definitions (should be 0, but search defensively)
-                    nstr_row_index = next((idx for idx, rd in enumerate(structures_tab.row_definitions) if rd.get("label") == "NSTR"), None)
-                    if nstr_row_index is not None:
-                        for col_index in range(structures_tab.table.columnCount()):
-                            widget = structures_tab.table.cellWidget(nstr_row_index, col_index)
-                            if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
-                                try:
-                                    max_nstr = max(max_nstr, int(widget.value()))
-                                except Exception:
-                                    pass
-                    # Determine current dynamic rows count beyond the base definitions
-                    base_len = len(getattr(structures_tab, 'base_row_definitions', []))
-                    current_dynamic = max(0, len(structures_tab.row_definitions) - base_len)
-                    current_struct_groups = current_dynamic // 6
-
-                    if max_nstr != current_struct_groups:
-                        # Build new row definitions: keep base rows, then add parameter-grouped rows across structures
-                        new_rows = list(structures_tab.base_row_definitions)
-                        # Group by parameter across all structures
-                        # 1) STRIC1..N
-                        for i in range(max_nstr):
-                            idx = i + 1
-                            new_rows.append({
-                                "label": f"STRIC{idx}",
-                                "type": "checkbox",
-                                "description": "Turns ON/OFF interpolation of structure outflows"
-                            })
-                        # 2) KTSTR1..N
-                        for i in range(max_nstr):
-                            idx = i + 1
-                            new_rows.append({
-                                "label": f"KTSTR{idx}",
-                                "type": "numeric",
-                                "description": "Top layer above which selective withdrawal will not occur"
-                            })
-                        # 3) KBSTR1..N
-                        for i in range(max_nstr):
-                            idx = i + 1
-                            new_rows.append({
-                                "label": f"KBSTR{idx}",
-                                "type": "numeric",
-                                "description": "Bottom layer below which selective withdrawal will not occur"
-                            })
-                        # 4) SINKC1..N
-                        for i in range(max_nstr):
-                            idx = i + 1
-                            new_rows.append({
-                                "label": f"SINKC{idx}",
-                                "type": "dropdown",
-                                "options": ["LINE", "POINT"],
-                                "description": "Sink type used in the selective withdrawal algorithm, LINE or POINT"
-                            })
-                        # 5) ESTR1..N
-                        for i in range(max_nstr):
-                            idx = i + 1
-                            new_rows.append({
-                                "label": f"ESTR{idx}",
-                                "type": "numeric",
-                                "decimal_places": 2,
-                                "description": "Centerline elevation of structure, m"
-                            })
-                        # 6) WSTR1..N
-                        for i in range(max_nstr):
-                            idx = i + 1
-                            new_rows.append({
-                                "label": f"WSTR{idx}",
-                                "type": "numeric",
-                                "decimal_places": 2,
-                                "description": "Width of structure (line sink), m"
-                            })
-                        structures_tab.set_row_definitions(new_rows)
-                except Exception:
-                    # Fail-safe: do not break sync if anything unexpected occurs
-                    pass
+            self.update_structures_dynamic_rows()
         
         finally:
             self._sync_in_progress = False
     
+    def update_structures_dynamic_rows(self):
+        """Only adjust Structures dynamic rows without rebuilding other tabs"""
+        if getattr(self, "_sync_in_progress", False):
+            # If a broader sync is running, let it handle updates
+            return
+        structures_tab = self.tabs.get("Structures")
+        if structures_tab and isinstance(structures_tab, TabularDataTab):
+            try:
+                max_nstr = 0
+                nstr_row_index = next((idx for idx, rd in enumerate(structures_tab.row_definitions) if rd.get("label") == "NSTR"), None)
+                if nstr_row_index is not None:
+                    for col_index in range(structures_tab.table.columnCount()):
+                        widget = structures_tab.table.cellWidget(nstr_row_index, col_index)
+                        if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                            try:
+                                max_nstr = max(max_nstr, int(widget.value()))
+                            except Exception:
+                                pass
+                base_len = len(getattr(structures_tab, 'base_row_definitions', []))
+                current_dynamic = max(0, len(structures_tab.row_definitions) - base_len)
+                current_struct_groups = current_dynamic // 6
+ 
+                if max_nstr != current_struct_groups:
+                    new_rows = list(structures_tab.base_row_definitions)
+                    # 1) STRIC1..N
+                    for i in range(max_nstr):
+                        idx = i + 1
+                        new_rows.append({
+                            "label": f"STRIC{idx}",
+                            "type": "checkbox",
+                            "description": "Turns ON/OFF interpolation of structure outflows"
+                        })
+                    # 2) KTSTR1..N
+                    for i in range(max_nstr):
+                        idx = i + 1
+                        new_rows.append({
+                            "label": f"KTSTR{idx}",
+                            "type": "numeric",
+                            "description": "Top layer above which selective withdrawal will not occur"
+                        })
+                    # 3) KBSTR1..N
+                    for i in range(max_nstr):
+                        idx = i + 1
+                        new_rows.append({
+                            "label": f"KBSTR{idx}",
+                            "type": "numeric",
+                            "description": "Bottom layer below which selective withdrawal will not occur"
+                        })
+                    # 4) SINKC1..N
+                    for i in range(max_nstr):
+                        idx = i + 1
+                        new_rows.append({
+                            "label": f"SINKC{idx}",
+                            "type": "dropdown",
+                            "options": ["LINE", "POINT"],
+                            "description": "Sink type used in the selective withdrawal algorithm, LINE or POINT"
+                        })
+                    # 5) ESTR1..N
+                    for i in range(max_nstr):
+                        idx = i + 1
+                        new_rows.append({
+                            "label": f"ESTR{idx}",
+                            "type": "numeric",
+                            "decimal_places": 2,
+                            "description": "Centerline elevation of structure, m"
+                        })
+                    # 6) WSTR1..N
+                    for i in range(max_nstr):
+                        idx = i + 1
+                        new_rows.append({
+                            "label": f"WSTR{idx}",
+                            "type": "numeric",
+                            "decimal_places": 2,
+                            "description": "Width of structure (line sink), m"
+                        })
+                    structures_tab.set_row_definitions(new_rows)
+            except Exception:
+                pass
+
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
         tab_name = item.text()
