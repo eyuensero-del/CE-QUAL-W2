@@ -229,11 +229,23 @@ class TabularDataTab(QWidget):
             item.setToolTip(row_def.get('description', ''))
             self.table.setVerticalHeaderItem(i, item)
 
-        # Recreate cells according to current column count and new row types
+                # Recreate cells according to current column count and new row types
         self.set_columns(current_columns)
-
-        # Restore any overlapping data back into the table
-        self.set_data(current_data)
+ 
+        # Restore data by matching labels to preserve values across reordering
+        try:
+            old_by_label = {}
+            for row in current_data:
+                if isinstance(row, list) and row:
+                    old_by_label[row[0]] = row[1:]
+            remapped = []
+            for row_def in self.row_definitions:
+                label = row_def.get('label')
+                values = old_by_label.get(label, [])
+                remapped.append([label] + values)
+            self.set_data(remapped)
+        except Exception:
+            self.set_data(current_data)
 
     def get_data(self):
         """Returns tabular data as a list of lists."""
@@ -684,43 +696,54 @@ class CompactApp(QWidget):
                     current_struct_groups = current_dynamic // 6
 
                     if max_nstr != current_struct_groups:
-                        # Build new row definitions: keep base rows, then add 6-parameter groups per structure
+                        # Build new row definitions: keep base rows, then add parameter-grouped rows across structures
                         new_rows = list(structures_tab.base_row_definitions)
+                        # Group by parameter across all structures
+                        # 1) STRIC1..N
                         for i in range(max_nstr):
                             idx = i + 1
-                            # Group 1: STRIC# (checkbox)
                             new_rows.append({
                                 "label": f"STRIC{idx}",
                                 "type": "checkbox",
                                 "description": "Turns ON/OFF interpolation of structure outflows"
                             })
-                            # Group 2: KTSTR# (numeric)
+                        # 2) KTSTR1..N
+                        for i in range(max_nstr):
+                            idx = i + 1
                             new_rows.append({
                                 "label": f"KTSTR{idx}",
                                 "type": "numeric",
                                 "description": "Top layer above which selective withdrawal will not occur"
                             })
-                            # Group 3: KBSTR# (numeric)
+                        # 3) KBSTR1..N
+                        for i in range(max_nstr):
+                            idx = i + 1
                             new_rows.append({
                                 "label": f"KBSTR{idx}",
                                 "type": "numeric",
                                 "description": "Bottom layer below which selective withdrawal will not occur"
                             })
-                            # Group 4: SINKC# (dropdown)
+                        # 4) SINKC1..N
+                        for i in range(max_nstr):
+                            idx = i + 1
                             new_rows.append({
                                 "label": f"SINKC{idx}",
                                 "type": "dropdown",
                                 "options": ["LINE", "POINT"],
                                 "description": "Sink type used in the selective withdrawal algorithm, LINE or POINT"
                             })
-                            # Group 5: ESTR# (numeric with 2 decimals)
+                        # 5) ESTR1..N
+                        for i in range(max_nstr):
+                            idx = i + 1
                             new_rows.append({
                                 "label": f"ESTR{idx}",
                                 "type": "numeric",
                                 "decimal_places": 2,
                                 "description": "Centerline elevation of structure, m"
                             })
-                            # Group 6: WSTR# (numeric with 2 decimals)
+                        # 6) WSTR1..N
+                        for i in range(max_nstr):
+                            idx = i + 1
                             new_rows.append({
                                 "label": f"WSTR{idx}",
                                 "type": "numeric",
