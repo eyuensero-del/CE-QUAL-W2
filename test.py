@@ -191,18 +191,6 @@ class TabularDataTab(QWidget):
                     if isinstance(name_widget, QLineEdit):
                         names[col_index] = name_widget.text().strip()
             column_headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_columns)]
-        elif self.tab_name == "Pipes":
-            column_headers = [f"PIPE{i+1}" for i in range(num_columns)]
-        elif self.tab_name == "Spillway":
-            column_headers = [f"SP{i+1}" for i in range(num_columns)]
-        elif self.tab_name == "Gates":
-            column_headers = [f"GATE{i+1}" for i in range(num_columns)]
-        elif self.tab_name == "Pumps":
-            column_headers = [f"PUMP{i+1}" for i in range(num_columns)]
-        elif self.tab_name == "Internal Weirs":
-            column_headers = [f"IW{i+1}" for i in range(num_columns)]
-        elif self.tab_name == "Withdrawals":
-            column_headers = [f"WD{i+1}" for i in range(num_columns)]
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -259,9 +247,7 @@ class TabularDataTab(QWidget):
                     # If Tributary TRNAME, update headers on text change
                     if self.tab_name == "Tributary" and row_def.get("label") == "TRNAME":
                         try:
-                            def refresh_headers():
-                                self.set_columns(self.table.columnCount())
-                            line_edit.textChanged.connect(refresh_headers)
+                            line_edit.textChanged.connect(self.update_headers_only)
                         except Exception:
                             pass
                     self.table.setCellWidget(row_index, col_index, line_edit)
@@ -295,6 +281,27 @@ class TabularDataTab(QWidget):
         sender_widget = self.sender()
         if isinstance(sender_widget, (QSpinBox, QDoubleSpinBox)):
             sender_widget.setProperty("is_set", True)
+
+    def update_headers_only(self):
+        """Update only the horizontal header labels without recreating any cells."""
+        num_columns = max(1, self.table.columnCount())
+        if self.tab_name in ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea", 
+                             "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]:
+            column_headers = [f"WB{i+1}" for i in range(num_columns)]
+        elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
+            column_headers = [f"BR{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Tributary":
+            names = [""] * num_columns
+            trname_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "TRNAME"), None)
+            if trname_index is not None:
+                for col_index in range(num_columns):
+                    name_widget = self.table.cellWidget(trname_index, col_index)
+                    if isinstance(name_widget, QLineEdit):
+                        names[col_index] = name_widget.text().strip()
+                column_headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_columns)]
+        else:
+            column_headers = [f"Col{i+1}" for i in range(num_columns)]
+        self.table.setHorizontalHeaderLabels(column_headers)
 
     def set_row_definitions(self, new_row_definitions):
         """Replace row definitions dynamically, preserving existing data where possible."""
@@ -362,9 +369,13 @@ class TabularDataTab(QWidget):
                     row_data.append(value)
                 elif cell_type == "file":
                     button = self.table.cellWidget(row_index, col_index)
-                    # store the displayed path (which may be relative)
-                    value = button.text() if button else ""
-                    row_data.append(value)
+                    # store the displayed path (which may be relative); leave blank if untouched
+                    if button is None:
+                        row_data.append("")
+                    else:
+                        txt = button.text().strip()
+                        value = txt if txt and txt != "Browse..." else ""
+                        row_data.append(value)
             data.append(row_data)
         return data
 
@@ -848,7 +859,12 @@ class CompactApp(QWidget):
         self.stacked_widget = QStackedWidget()
 
         self.tabs = {}
-        for title, data in self.tab_data.items():
+        # Build tabs; ensure Tributary is added last for display ordering
+        titles = list(self.tab_data.keys())
+        if "Tributary" in titles:
+            titles.remove("Tributary")
+        for title in titles + (["Tributary"] if "Tributary" in self.tab_data else []):
+            data = self.tab_data[title]
             if data.get("type") == "tabular":
                 tab_widget = TabularDataTab(data["rows"], tab_name=title)  # Pass tab name
             else:
