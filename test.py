@@ -178,7 +178,7 @@ class TabularDataTab(QWidget):
         if self.tab_name in ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea", 
                              "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]:
             column_headers = [f"WB{i+1}" for i in range(num_columns)]
-        elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
+        elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures", "Distributed Tributaries"]:
             column_headers = [f"BR{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Tributary":
             # Build headers TR# (Name) using TRNAME row if present
@@ -288,7 +288,7 @@ class TabularDataTab(QWidget):
         if self.tab_name in ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea", 
                              "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]:
             column_headers = [f"WB{i+1}" for i in range(num_columns)]
-        elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
+        elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures", "Distributed Tributaries"]:
             column_headers = [f"BR{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Tributary":
             names = [""] * num_columns
@@ -720,6 +720,13 @@ class CompactApp(QWidget):
                     {"label": "CTRFN", "type": "file", "description": "Placeholder: CTRFN local path"}
                 ],
                 "columns_from": "NTR"
+            },
+            "Distributed Tributaries": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "DTRC", "type": "checkbox", "description": "Distributed tributary option, ON or OFF"}
+                ],
+                "columns_from": "NBR"
             },
             "Pipes": {
                 "type": "tabular",
@@ -1162,7 +1169,7 @@ class CompactApp(QWidget):
                                 if tab_name in ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea",
                                                 "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]:
                                     headers = [f"WB{i+1}" for i in range(len(tabular_data[0]) - 1)]
-                                elif tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
+                                elif tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures", "Distributed Tributaries"]:
                                     headers = [f"BR{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name == "Tributary":
                                     # Pull TRNAME values from the first row of data
