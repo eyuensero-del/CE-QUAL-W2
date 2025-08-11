@@ -175,6 +175,8 @@ class TabularDataTab(QWidget):
             column_headers = [f"WB{i+1}" for i in range(num_columns)]
         elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
             column_headers = [f"BR{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Pipes":
+            column_headers = [f"PIPE{i+1}" for i in range(num_columns)]
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -574,10 +576,36 @@ class CompactApp(QWidget):
                 "type": "tabular",
                 "rows": [
                     {"label": "NSTR", "type": "numeric",  "description": "Number of branch outlet structures"},
-                    {"label": "DYNSTRUC", "type": "checkbox", "description": "Use dynamic centerline elevation for the structure, "
-                    "usually the centerline elevation is fixed and specified with ESTR. If this is ON, the model will read a separate file for each branch called dynselevX.npt where X is the branch number."}                
+                    {"label": "DYNSTRUC", "type": "checkbox", "description": "Use dynamic centerline elevation for the structure, \
+                    usually the centerline elevation is fixed and specified with ESTR. If this is ON, the model will read a separate file for each branch called dynselevX.npt where X is the branch number."}                
                 ],
                 "columns_from": "NBR"
+            },
+            "Pipes": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IUPI", "type": "numeric", "description": "Upstream segment number"},
+                    {"label": "IDPI", "type": "numeric", "description": "Downstream segment number"},
+                    {"label": "EUPI", "type": "numeric", "decimal_places": 3, "description": "Elevation upstream invert, m"},
+                    {"label": "EDPI", "type": "numeric", "decimal_places": 3, "description": "Elevation downstream invert, m"},
+                    {"label": "WPI", "type": "numeric", "decimal_places": 3, "description": "Pipe diameter, m"},
+                    {"label": "DLXPI", "type": "numeric", "decimal_places": 3, "description": "Pipe length, m"},
+                    {"label": "FPI", "type": "numeric", "decimal_places": 3, "description": "friction factor (Mannings)"},
+                    {"label": "FMINPI", "type": "numeric", "decimal_places": 3, "description": "minor losses friction factor (Mannings)"},
+                    {"label": "WTHLC", "type": "dropdown", "options": ["DOWN", "LAT"], "description": "DOWN or LAT, withdrawal control for at end of segment or middle"},
+                    {"label": "DYNPIPE", "type": "checkbox", "description": "Dynamic pipe read input file, ON or OFF"},
+                    {"label": "PUPIC", "type": "dropdown", "options": ["DISTR", "SPECIFY", "DENSITY"], "description": "PipeUp inflow: DISTR, SPECIFY, DENSITY"},
+                    {"label": "ETUPI", "type": "numeric", "decimal_places": 3, "description": "PipeUp Elevation top in m if SPECIFY"},
+                    {"label": "EBUPI", "type": "numeric", "decimal_places": 3, "description": "PipeUp Elevation bottom in m if SPECIFY"},
+                    {"label": "KTUPI", "type": "numeric", "description": "PipeUp Selective withdrawal top layer, Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBUPI", "type": "numeric", "description": "PipeUp Selective withdrawal bottom layer, Bottom layer below which selective withdrawal will not occur"},
+                    {"label": "PDPIC", "type": "dropdown", "options": ["DISTR", "SPECIFY", "DENSITY"], "description": "PipeDown inflow: DISTR, SPECIFY, DENSITY"},
+                    {"label": "ETDPI", "type": "numeric", "decimal_places": 3, "description": "PipeDown Elevation top in m if SPECIFY"},
+                    {"label": "EBDPI", "type": "numeric", "decimal_places": 3, "description": "PipeDown Elevation bottom in m if SPECIFY"},
+                    {"label": "KTDPI", "type": "numeric", "description": "PipeDown Selective withdrawal top layer, Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBDPI", "type": "numeric", "description": "PipeDown Selective withdrawal bottom layer, Bottom layer below which selective withdrawal will not occur"}
+                ],
+                "columns_from": "NPI"
             }
         }
         self.initUI()
@@ -629,6 +657,7 @@ class CompactApp(QWidget):
         try:
             nwb_value = 0
             nbr_value = 0
+            npi_value = 0
             grid_tab = self.tabs.get("Grid Dimensions and General Settings")
             if grid_tab:
                 for label, value in grid_tab.get_data():
@@ -643,6 +672,16 @@ class CompactApp(QWidget):
                         except (ValueError, TypeError):
                             pass
 
+            # Read NPI from Inflow/Outflow Dimensions tab for Pipes columns
+            inflow_tab = self.tabs.get("Inflow/Outflow Dimensions")
+            if inflow_tab:
+                for label, value in inflow_tab.get_data():
+                    if label == "NPI" and value:
+                        try:
+                            npi_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+ 
             # Sync all NWB-dependent tabs
             nwb_tabs = ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea",
                         "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]
@@ -660,6 +699,15 @@ class CompactApp(QWidget):
                 if tab and isinstance(tab, TabularDataTab):
                     current_data = tab.get_data()
                     tab.set_columns(max(1, nbr_value))  # Ensure at least 1 column
+                    tab.set_data(current_data)
+
+            # Sync all NPI-dependent tabs
+            npi_tabs = ["Pipes"]
+            for tab_name in npi_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, npi_value))
                     tab.set_data(current_data)
 
             # After NBR-dependent sync, adjust Structures tab rows dynamically based on max NSTR
@@ -728,6 +776,8 @@ class CompactApp(QWidget):
                                     headers = [f"WB{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]:
                                     headers = [f"BR{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Pipes":
+                                    headers = [f"PIPE{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 else:
                                     headers = []
                                 writer.writerow(headers)
