@@ -6,7 +6,7 @@ from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QLabel,
                              QLineEdit, QPushButton, QStackedWidget, QListWidget, 
                              QHBoxLayout, QFileDialog, QMessageBox, QListWidgetItem,
                              QCheckBox, QComboBox, QGridLayout, QSpinBox, QDoubleSpinBox,
-                             QTableWidget, QTableWidgetItem)
+                             QTableWidget, QTableWidgetItem, QAbstractItemView)
 from PyQt6.QtGui import QFont
 from PyQt6.QtCore import Qt, pyqtSignal
 
@@ -150,6 +150,11 @@ class TabularDataTab(QWidget):
         self.tab_name = tab_name  # Store tab name directly
         self.table = QTableWidget()
         self.table.setRowCount(len(self.row_definitions))
+        # Ensure cell widgets are editable/interactable
+        try:
+            self.table.setEditTriggers(QAbstractItemView.EditTrigger.AllEditTriggers)
+        except Exception:
+            pass
         
         # Preserve the original/base row definitions to support dynamic row extension
         self.base_row_definitions = list(row_definitions)
@@ -216,6 +221,12 @@ class TabularDataTab(QWidget):
                     # Track when user actually sets a numeric value
                     try:
                         spinbox.valueChanged.connect(self._on_numeric_value_changed)
+                    except Exception:
+                        pass
+                    # Ensure numeric widgets are enabled and editable
+                    try:
+                        spinbox.setEnabled(True)
+                        spinbox.setReadOnly(False)
                     except Exception:
                         pass
                     self.table.setCellWidget(row_index, col_index, spinbox)
