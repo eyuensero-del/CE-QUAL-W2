@@ -181,6 +181,12 @@ class TabularDataTab(QWidget):
             column_headers = [f"SP{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Gates":
             column_headers = [f"GATE{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Pumps":
+            column_headers = [f"PUMP{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Internal Weirs":
+            column_headers = [f"IW{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Withdrawals":
+            column_headers = [f"WD{i+1}" for i in range(num_columns)]
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -669,6 +675,47 @@ class CompactApp(QWidget):
                     {"label": "CGASGT", "type": "numeric", "decimal_places": 3, "description": "c empirical coefficient"}
                 ],
                 "columns_from": "NGT"
+            },
+            "Pumps": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IUPU", "type": "numeric", "description": "Upstream segment number where water is withdrawn"},
+                    {"label": "IDPU", "type": "numeric", "description": "Downstream segment number where water enters"},
+                    {"label": "EPU", "type": "numeric", "decimal_places": 3, "description": "Elevation of pump, m"},
+                    {"label": "STRTPU", "type": "numeric", "decimal_places": 3, "description": "Starting day of pumping Julian day"},
+                    {"label": "ENDPU", "type": "numeric", "decimal_places": 3, "description": "Ending day of pumping Julian day"},
+                    {"label": "EONPU", "type": "numeric", "decimal_places": 3, "description": "Pump starting elevation, m"},
+                    {"label": "EOFFPU", "type": "numeric", "decimal_places": 3, "description": "Pump stopping elevation, m"},
+                    {"label": "QPU", "type": "numeric", "decimal_places": 3, "description": "Pump flow rate, m3/s"},
+                    {"label": "LATPUC", "type": "dropdown", "options": ["DOWN", "LAT"], "description": "Downstream or lateral withdrawal, DOWN or LAT"},
+                    {"label": "DYNPUM", "type": "checkbox", "description": "Dynamic pump control ON or OFF"},
+                    {"label": "PPUC", "type": "dropdown", "options": ["DISTR", "DENSITY", "SPECIFY"], "description": "How inflows enter into the downstream pump segment, DISTR, DENSITY, or SPECIFY"},
+                    {"label": "ETPU", "type": "numeric", "decimal_places": 3, "description": "Top elevation inflow enters using SPECIFY option, m"},
+                    {"label": "EBPU", "type": "numeric", "decimal_places": 3, "description": "Bottom elevation inflow enters using SPECIFY option, m"},
+                    {"label": "KTPU", "type": "numeric", "description": "Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBPU", "type": "numeric", "description": "Bottom layer below which selective withdrawal will not occur"}
+                ],
+                "columns_from": "NPU"
+            },
+            "Internal Weirs": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "IWR", "type": "numeric", "description": "Internal weir segment number (RHS)"},
+                    {"label": "KTWR", "type": "numeric", "description": "Internal weir layer top"},
+                    {"label": "KBWR", "type": "numeric", "description": "Internal weir layer bottom"}
+                ],
+                "columns_from": "NIW"
+            },
+            "Withdrawals": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "WDIC", "type": "checkbox", "description": "Withdrawal interpolation, ON or OFF"},
+                    {"label": "IWD", "type": "numeric", "description": "Withdrawal outflow segment"},
+                    {"label": "EWD", "type": "numeric", "decimal_places": 3, "description": "Withdrawal centerline elevation"},
+                    {"label": "KTWD", "type": "numeric", "description": "Withdrawal selective withdrawal top, Top layer above which selective withdrawal will not occur"},
+                    {"label": "KBWD", "type": "numeric", "description": "Withdrawal selective withdrawal bottom, Bottom layer below which selective withdrawal will not occur"}
+                ],
+                "columns_from": "NWD"
             }
         }
         self.initUI()
@@ -723,6 +770,9 @@ class CompactApp(QWidget):
             npi_value = 0
             nsp_value = 0
             ngt_value = 0
+            npu_value = 0
+            niw_value = 0
+            nwd_value = 0
             grid_tab = self.tabs.get("Grid Dimensions and General Settings")
             if grid_tab:
                 for label, value in grid_tab.get_data():
@@ -754,6 +804,21 @@ class CompactApp(QWidget):
                     elif label == "NGT" and value:
                         try:
                             ngt_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NPU" and value:
+                        try:
+                            npu_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NIW" and value:
+                        try:
+                            niw_value = int(value)
+                        except (ValueError, TypeError):
+                            pass
+                    elif label == "NWD" and value:
+                        try:
+                            nwd_value = int(value)
                         except (ValueError, TypeError):
                             pass
  
@@ -801,6 +866,33 @@ class CompactApp(QWidget):
                 if tab and isinstance(tab, TabularDataTab):
                     current_data = tab.get_data()
                     tab.set_columns(max(1, ngt_value))
+                    tab.set_data(current_data)
+
+            # Sync all NPU-dependent tabs
+            npu_tabs = ["Pumps"]
+            for tab_name in npu_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, npu_value))
+                    tab.set_data(current_data)
+
+            # Sync all NIW-dependent tabs
+            niw_tabs = ["Internal Weirs"]
+            for tab_name in niw_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, niw_value))
+                    tab.set_data(current_data)
+
+            # Sync all NWD-dependent tabs
+            nwd_tabs = ["Withdrawals"]
+            for tab_name in nwd_tabs:
+                tab = self.tabs.get(tab_name)
+                if tab and isinstance(tab, TabularDataTab):
+                    current_data = tab.get_data()
+                    tab.set_columns(max(1, nwd_value))
                     tab.set_data(current_data)
 
             # After NBR-dependent sync, adjust Structures tab rows dynamically based on max NSTR
@@ -875,6 +967,12 @@ class CompactApp(QWidget):
                                     headers = [f"SP{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name == "Gates":
                                     headers = [f"GATE{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Pumps":
+                                    headers = [f"PUMP{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Internal Weirs":
+                                    headers = [f"IW{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                elif tab_name == "Withdrawals":
+                                    headers = [f"WD{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 else:
                                     headers = []
                                 writer.writerow(headers)
