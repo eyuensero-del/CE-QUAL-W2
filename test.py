@@ -681,15 +681,51 @@ class CompactApp(QWidget):
                     # Determine current dynamic rows count beyond the base definitions
                     base_len = len(getattr(structures_tab, 'base_row_definitions', []))
                     current_dynamic = max(0, len(structures_tab.row_definitions) - base_len)
+                    current_struct_groups = current_dynamic // 6
 
-                    if max_nstr != current_dynamic:
-                        # Build new row definitions: keep base rows, then add placeholders for each structure
+                    if max_nstr != current_struct_groups:
+                        # Build new row definitions: keep base rows, then add 6-parameter groups per structure
                         new_rows = list(structures_tab.base_row_definitions)
                         for i in range(max_nstr):
+                            idx = i + 1
+                            # Group 1: STRIC# (checkbox)
                             new_rows.append({
-                                "label": f"STRUCT_{i+1}",
-                                "type": "text",
-                                "description": f"Structure {i+1} parameters for each branch"
+                                "label": f"STRIC{idx}",
+                                "type": "checkbox",
+                                "description": "Turns ON/OFF interpolation of structure outflows"
+                            })
+                            # Group 2: KTSTR# (numeric)
+                            new_rows.append({
+                                "label": f"KTSTR{idx}",
+                                "type": "numeric",
+                                "description": "Top layer above which selective withdrawal will not occur"
+                            })
+                            # Group 3: KBSTR# (numeric)
+                            new_rows.append({
+                                "label": f"KBSTR{idx}",
+                                "type": "numeric",
+                                "description": "Bottom layer below which selective withdrawal will not occur"
+                            })
+                            # Group 4: SINKC# (dropdown)
+                            new_rows.append({
+                                "label": f"SINKC{idx}",
+                                "type": "dropdown",
+                                "options": ["LINE", "POINT"],
+                                "description": "Sink type used in the selective withdrawal algorithm, LINE or POINT"
+                            })
+                            # Group 5: ESTR# (numeric with 2 decimals)
+                            new_rows.append({
+                                "label": f"ESTR{idx}",
+                                "type": "numeric",
+                                "decimal_places": 2,
+                                "description": "Centerline elevation of structure, m"
+                            })
+                            # Group 6: WSTR# (numeric with 2 decimals)
+                            new_rows.append({
+                                "label": f"WSTR{idx}",
+                                "type": "numeric",
+                                "decimal_places": 2,
+                                "description": "Width of structure (line sink), m"
                             })
                         structures_tab.set_row_definitions(new_rows)
                 except Exception:
