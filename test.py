@@ -172,7 +172,10 @@ class TabularDataTab(QWidget):
         """Dynamically sets the number of columns and their headers."""
         # Ensure at least 1 column for display
         num_columns = max(1, num_columns)
-        self.table.setColumnCount(num_columns)
+
+        is_hydro_out = (self.tab_name == "Hydrodynamic Output Control")
+        total_columns = num_columns + 3 if is_hydro_out else num_columns
+        self.table.setColumnCount(total_columns)
         
         # Use stored tab name for correct headers
         if self.tab_name in ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea", 
@@ -183,7 +186,6 @@ class TabularDataTab(QWidget):
         elif self.tab_name == "Tributary":
             # Build headers TR# (Name) using TRNAME row if present
             names = [""] * num_columns
-            # Try to locate TRNAME row index
             trname_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "TRNAME"), None)
             if trname_index is not None:
                 for col_index in range(num_columns):
@@ -191,6 +193,9 @@ class TabularDataTab(QWidget):
                     if isinstance(name_widget, QLineEdit):
                         names[col_index] = name_widget.text().strip()
             column_headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_columns)]
+        elif is_hydro_out:
+            # First 3 fixed columns then HPRWBC# columns for each waterbody
+            column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -198,7 +203,7 @@ class TabularDataTab(QWidget):
         
         # Populate each cell with the appropriate widget type
         for row_index, row_def in enumerate(self.row_definitions):
-            for col_index in range(num_columns):
+            for col_index in range(total_columns):
                 # Clear any existing widget or item to avoid mixed cell content when types change
                 try:
                     self.table.removeCellWidget(row_index, col_index)
@@ -208,6 +213,58 @@ class TabularDataTab(QWidget):
                     self.table.takeItem(row_index, col_index)
                 except Exception:
                     pass
+                
+                if is_hydro_out:
+                    # Column-specific behavior for Hydrodynamic Output Control
+                    if col_index == 0:
+                        # HNAME column: static placeholder text (non-editable)
+                        placeholder = row_def.get('label', 'HNAME')
+                        item = QTableWidgetItem(placeholder)
+                        item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # not editable
+                        self.table.setItem(row_index, col_index, item)
+                        continue
+                    if col_index == 1:
+                        # FMTH dropdown
+                        combo_box = QComboBox()
+                        combo_box.addItems(["(I10)", "(f10.3)"])
+                        self.table.setCellWidget(row_index, col_index, combo_box)
+                        continue
+                    if col_index == 2:
+                        # HMULT numeric with 3 decimals
+                        spin = QDoubleSpinBox()
+                        spin.setDecimals(3)
+                        spin.setMinimum(0.0)
+                        spin.setMaximum(999999.0)
+                        try:
+                            spin.valueChanged.connect(self._on_numeric_value_changed)
+                        except Exception:
+                            pass
+                        self.table.setCellWidget(row_index, col_index, spin)
+                        continue
+                    # HPRWBC# columns
+                    if row_index == 0:
+                        # First row is integer
+                        spinbox = QSpinBox()
+                        spinbox.setMinimum(0)
+                        spinbox.setMaximum(999999)
+                        try:
+                            spinbox.valueChanged.connect(self._on_numeric_value_changed)
+                        except Exception:
+                            pass
+                        self.table.setCellWidget(row_index, col_index, spinbox)
+                    else:
+                        spinbox = QDoubleSpinBox()
+                        spinbox.setDecimals(3)
+                        spinbox.setMinimum(0.0)
+                        spinbox.setMaximum(999999.0)
+                        try:
+                            spinbox.valueChanged.connect(self._on_numeric_value_changed)
+                        except Exception:
+                            pass
+                        self.table.setCellWidget(row_index, col_index, spinbox)
+                    continue
+                
+                # Default behavior for all other tabs
                 cell_type = row_def.get("type", "checkbox")
                 if cell_type == "checkbox":
                     item = QTableWidgetItem()
@@ -299,6 +356,8 @@ class TabularDataTab(QWidget):
                     if isinstance(name_widget, QLineEdit):
                         names[col_index] = name_widget.text().strip()
                 column_headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Hydrodynamic Output Control":
+            column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -853,6 +912,33 @@ class CompactApp(QWidget):
                     {"label": "KBWD", "type": "numeric", "description": "Withdrawal selective withdrawal bottom, Bottom layer below which selective withdrawal will not occur"}
                 ],
                 "columns_from": "NWD"
+            },
+            "Hydrodynamic Output Control": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "NVIOL", "type": "numeric", "description": "Placeholder"},
+                    {"label": "U", "type": "numeric", "description": "Placeholder"},
+                    {"label": "W", "type": "numeric", "description": "Placeholder"},
+                    {"label": "T", "type": "numeric", "description": "Placeholder"},
+                    {"label": "RHO", "type": "numeric", "description": "Placeholder"},
+                    {"label": "AZ", "type": "numeric", "description": "Placeholder"},
+                    {"label": "SHEAR", "type": "numeric", "description": "Placeholder"},
+                    {"label": "ST", "type": "numeric", "description": "Placeholder"},
+                    {"label": "SB ADMX", "type": "numeric", "description": "Placeholder"},
+                    {"label": "DM", "type": "numeric", "description": "Placeholder"},
+                    {"label": "HDG", "type": "numeric", "description": "Placeholder"},
+                    {"label": "ADMZ", "type": "numeric", "description": "Placeholder"},
+                    {"label": "HPG", "type": "numeric", "description": "Placeholder"},
+                    {"label": "GRAV", "type": "numeric", "description": "Placeholder"}
+                ],
+                "columns_from": "NWB"
+            },
+            "Distributed Tributaries": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "DTRC", "type": "checkbox", "description": "Distributed tributary option, ON or OFF"}
+                ],
+                "columns_from": "NBR"
             }
         }
         self.initUI()
@@ -972,7 +1058,7 @@ class CompactApp(QWidget):
  
             # Sync all NWB-dependent tabs
             nwb_tabs = ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea",
-                        "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]
+                        "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity", "Hydrodynamic Output Control"]
             for tab_name in nwb_tabs:
                 tab = self.tabs.get(tab_name)
                 if tab and isinstance(tab, TabularDataTab):
