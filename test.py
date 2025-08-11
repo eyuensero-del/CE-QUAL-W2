@@ -866,11 +866,17 @@ class CompactApp(QWidget):
         self.stacked_widget = QStackedWidget()
 
         self.tabs = {}
-        # Build tabs; ensure Tributary is added last for display ordering
+        # Build tabs; ensure Tributary and Distributed Tributaries are added last for display ordering
         titles = list(self.tab_data.keys())
-        if "Tributary" in titles:
-            titles.remove("Tributary")
-        for title in titles + (["Tributary"] if "Tributary" in self.tab_data else []):
+        for last_tab in ["Tributary", "Distributed Tributaries"]:
+            if last_tab in titles:
+                titles.remove(last_tab)
+        ordered_titles = titles
+        if "Tributary" in self.tab_data:
+            ordered_titles += ["Tributary"]
+        if "Distributed Tributaries" in self.tab_data:
+            ordered_titles += ["Distributed Tributaries"]
+        for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
                 tab_widget = TabularDataTab(data["rows"], tab_name=title)  # Pass tab name
@@ -975,7 +981,7 @@ class CompactApp(QWidget):
                     tab.set_data(current_data)
 
             # Sync all NBR-dependent tabs
-            nbr_tabs = ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures"]
+            nbr_tabs = ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures", "Distributed Tributaries"]
             for tab_name in nbr_tabs:
                 tab = self.tabs.get(tab_name)
                 if tab and isinstance(tab, TabularDataTab):
