@@ -213,6 +213,11 @@ class TabularDataTab(QWidget):
                             spinbox.valueChanged.connect(self.structureChanged.emit)
                         except Exception:
                             pass
+                    # Track when user actually sets a numeric value
+                    try:
+                        spinbox.valueChanged.connect(self._on_numeric_value_changed)
+                    except Exception:
+                        pass
                     self.table.setCellWidget(row_index, col_index, spinbox)
                 elif cell_type == "text":
                     line_edit = QLineEdit()
@@ -221,6 +226,11 @@ class TabularDataTab(QWidget):
                     combo_box = QComboBox()
                     combo_box.addItems(row_def.get("options", []))
                     self.table.setCellWidget(row_index, col_index, combo_box)
+
+    def _on_numeric_value_changed(self, *args):
+        sender_widget = self.sender()
+        if isinstance(sender_widget, (QSpinBox, QDoubleSpinBox)):
+            sender_widget.setProperty("is_set", True)
 
     def set_row_definitions(self, new_row_definitions):
         """Replace row definitions dynamically, preserving existing data where possible."""
@@ -269,8 +279,15 @@ class TabularDataTab(QWidget):
                     row_data.append(value)
                 elif cell_type == "numeric":
                     spinbox = self.table.cellWidget(row_index, col_index)
-                    value = str(spinbox.value()) if spinbox else "0"
-                    row_data.append(value)
+                    if not spinbox:
+                        row_data.append("")
+                    else:
+                        # Leave blank unless user has explicitly changed the value
+                        is_set = spinbox.property("is_set")
+                        if is_set:
+                            row_data.append(str(spinbox.value()))
+                        else:
+                            row_data.append("")
                 elif cell_type == "text":
                     line_edit = self.table.cellWidget(row_index, col_index)
                     value = line_edit.text() if line_edit else ""
