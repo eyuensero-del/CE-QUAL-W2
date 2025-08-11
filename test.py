@@ -148,6 +148,9 @@ class TabularDataTab(QWidget):
         self.table = QTableWidget()
         self.table.setRowCount(len(self.row_definitions))
         
+        # Preserve the original/base row definitions to support dynamic row extension
+        self.base_row_definitions = list(row_definitions)
+        
         # Set the vertical headers and tooltips
         for i, row_def in enumerate(self.row_definitions):
             item = QTableWidgetItem(row_def['label'])
@@ -200,6 +203,28 @@ class TabularDataTab(QWidget):
                     combo_box = QComboBox()
                     combo_box.addItems(row_def.get("options", []))
                     self.table.setCellWidget(row_index, col_index, combo_box)
+
+    def set_row_definitions(self, new_row_definitions):
+        """Replace row definitions dynamically, preserving existing data where possible."""
+        # Preserve current data and column count
+        current_data = self.get_data()
+        current_columns = self.table.columnCount()
+
+        # Apply new row definitions
+        self.row_definitions = new_row_definitions
+        self.table.setRowCount(len(self.row_definitions))
+
+        # Reset vertical headers and tooltips to match new rows
+        for i, row_def in enumerate(self.row_definitions):
+            item = QTableWidgetItem(row_def['label'])
+            item.setToolTip(row_def.get('description', ''))
+            self.table.setVerticalHeaderItem(i, item)
+
+        # Recreate cells according to current column count and new row types
+        self.set_columns(current_columns)
+
+        # Restore any overlapping data back into the table
+        self.set_data(current_data)
 
     def get_data(self):
         """Returns tabular data as a list of lists."""
@@ -617,6 +642,40 @@ class CompactApp(QWidget):
                 current_data = tab.get_data()
                 tab.set_columns(max(1, nbr_value))  # Ensure at least 1 column
                 tab.set_data(current_data)
+
+        # After NBR-dependent sync, adjust Structures tab rows dynamically based on max NSTR
+        structures_tab = self.tabs.get("Structures")
+        if structures_tab and isinstance(structures_tab, TabularDataTab):
+            try:
+                # Compute maximum NSTR across branches (row labeled 'NSTR')
+                max_nstr = 0
+                # Find index of NSTR row in current definitions (should be 0, but search defensively)
+                nstr_row_index = next((idx for idx, rd in enumerate(structures_tab.row_definitions) if rd.get("label") == "NSTR"), None)
+                if nstr_row_index is not None:
+                    for col_index in range(structures_tab.table.columnCount()):
+                        widget = structures_tab.table.cellWidget(nstr_row_index, col_index)
+                        if isinstance(widget, (QSpinBox, QDoubleSpinBox)):
+                            try:
+                                max_nstr = max(max_nstr, int(widget.value()))
+                            except Exception:
+                                pass
+                # Determine current dynamic rows count beyond the base definitions
+                base_len = len(getattr(structures_tab, 'base_row_definitions', []))
+                current_dynamic = max(0, len(structures_tab.row_definitions) - base_len)
+
+                if max_nstr != current_dynamic:
+                    # Build new row definitions: keep base rows, then add placeholders for each structure
+                    new_rows = list(structures_tab.base_row_definitions)
+                    for i in range(max_nstr):
+                        new_rows.append({
+                            "label": f"STRUCT_{i+1}",
+                            "type": "text",
+                            "description": f"Structure {i+1} parameters for each branch"
+                        })
+                    structures_tab.set_row_definitions(new_rows)
+            except Exception:
+                # Fail-safe: do not break sync if anything unexpected occurs
+                pass
     
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
