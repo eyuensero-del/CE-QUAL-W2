@@ -217,11 +217,14 @@ class TabularDataTab(QWidget):
                 if is_hydro_out:
                     # Column-specific behavior for Hydrodynamic Output Control
                     if col_index == 0:
-                        # HNAME column: static placeholder text (non-editable)
-                        placeholder = row_def.get('label', 'HNAME')
-                        item = QTableWidgetItem(placeholder)
-                        item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # not editable
-                        self.table.setItem(row_index, col_index, item)
+                        # HNAME column: editable text with initial value for user to edit
+                        line_edit = QLineEdit()
+                        try:
+                            line_edit.setText(row_def.get('label', 'HNAME'))
+                            line_edit.setPlaceholderText('Edit HNAME')
+                        except Exception:
+                            pass
+                        self.table.setCellWidget(row_index, col_index, line_edit)
                         continue
                     if col_index == 1:
                         # FMTH dropdown
@@ -241,27 +244,11 @@ class TabularDataTab(QWidget):
                             pass
                         self.table.setCellWidget(row_index, col_index, spin)
                         continue
-                    # HPRWBC# columns
-                    if row_index == 0:
-                        # First row is integer
-                        spinbox = QSpinBox()
-                        spinbox.setMinimum(0)
-                        spinbox.setMaximum(999999)
-                        try:
-                            spinbox.valueChanged.connect(self._on_numeric_value_changed)
-                        except Exception:
-                            pass
-                        self.table.setCellWidget(row_index, col_index, spinbox)
-                    else:
-                        spinbox = QDoubleSpinBox()
-                        spinbox.setDecimals(3)
-                        spinbox.setMinimum(0.0)
-                        spinbox.setMaximum(999999.0)
-                        try:
-                            spinbox.valueChanged.connect(self._on_numeric_value_changed)
-                        except Exception:
-                            pass
-                        self.table.setCellWidget(row_index, col_index, spinbox)
+                    # HPRWBC# columns -> all checkboxes
+                    item = QTableWidgetItem()
+                    item.setFlags(Qt.ItemFlag.ItemIsUserCheckable | Qt.ItemFlag.ItemIsEnabled)
+                    item.setCheckState(Qt.CheckState.Unchecked)
+                    self.table.setItem(row_index, col_index, item)
                     continue
                 
                 # Default behavior for all other tabs
