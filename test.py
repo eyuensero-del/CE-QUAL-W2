@@ -1338,17 +1338,24 @@ class CompactApp(QWidget):
 
     def update_snapshot_columns(self):
         """Rebuild columns for Snapshot Output Control when NSCR changes without re-syncing other tabs."""
-        if getattr(self, "_sync_in_progress", False):
+        # Reentrancy guard to avoid recursive updates while rebuilding
+        if getattr(self, "_snapshot_updating", False):
             return
-        snap_tab = self.tabs.get("Snapshot Output Control")
-        if snap_tab and isinstance(snap_tab, TabularDataTab):
-            try:
-                current_data = snap_tab.get_data()
-                # Re-run set_columns with at least 1 base col; it will add extras based on NSCR
-                snap_tab.set_columns(max(1, snap_tab.table.columnCount()))
-                snap_tab.set_data(current_data)
-            except Exception:
-                pass
+        self._snapshot_updating = True
+        try:
+            if getattr(self, "_sync_in_progress", False):
+                return
+            snap_tab = self.tabs.get("Snapshot Output Control")
+            if snap_tab and isinstance(snap_tab, TabularDataTab):
+                try:
+                    current_data = snap_tab.get_data()
+                    # Re-run set_columns from 1 base column; extras computed from NSCR
+                    snap_tab.set_columns(1)
+                    snap_tab.set_data(current_data)
+                except Exception:
+                    pass
+        finally:
+            self._snapshot_updating = False
 
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
