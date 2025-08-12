@@ -1402,6 +1402,9 @@ class CompactApp(QWidget):
                                             raw = raw.strip()
                                             names.append(raw)
                                     headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_cols)]
+                                elif tab_name == "Snapshot Output Control":
+                                    num_cols = len(tabular_data[0]) - 1
+                                    headers = ["SNP"] + [""] * (num_cols - 1)
                                 else:
                                     headers = []
                                 writer.writerow(headers)
