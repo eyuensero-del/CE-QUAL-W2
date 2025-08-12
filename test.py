@@ -924,7 +924,8 @@ class CompactApp(QWidget):
                     {"label": "AZ", "type": "numeric", "description": "Placeholder"},
                     {"label": "SHEAR", "type": "numeric", "description": "Placeholder"},
                     {"label": "ST", "type": "numeric", "description": "Placeholder"},
-                    {"label": "SB ADMX", "type": "numeric", "description": "Placeholder"},
+                    {"label": "SB", "type": "numeric", "description": "Placeholder"},
+                    {"label": "ADMX", "type": "numeric", "description": "Placeholder"},
                     {"label": "DM", "type": "numeric", "description": "Placeholder"},
                     {"label": "HDG", "type": "numeric", "description": "Placeholder"},
                     {"label": "ADMZ", "type": "numeric", "description": "Placeholder"},
@@ -954,7 +955,7 @@ class CompactApp(QWidget):
         self.tabs = {}
         # Build tabs; ensure Tributary and Distributed Tributaries are added last for display ordering
         titles = list(self.tab_data.keys())
-        for last_tab in ["Tributary", "Distributed Tributaries"]:
+        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control"]:
             if last_tab in titles:
                 titles.remove(last_tab)
         ordered_titles = titles
@@ -962,6 +963,8 @@ class CompactApp(QWidget):
             ordered_titles += ["Tributary"]
         if "Distributed Tributaries" in self.tab_data:
             ordered_titles += ["Distributed Tributaries"]
+        if "Hydrodynamic Output Control" in self.tab_data:
+            ordered_titles += ["Hydrodynamic Output Control"]
         for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
