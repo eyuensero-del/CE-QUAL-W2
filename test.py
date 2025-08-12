@@ -175,8 +175,9 @@ class TabularDataTab(QWidget):
 
         is_hydro_out = (self.tab_name == "Hydrodynamic Output Control")
         is_snapshot_out = (self.tab_name == "Snapshot Output Control")
+        is_screen_out = (self.tab_name == "Screen Output Control")
         extra_cols = 0
-        if is_snapshot_out:
+        if is_snapshot_out or is_screen_out:
             # Determine extra columns from NSCR (row index 1) values (max across columns)
             try:
                 nscr_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NSCR"), 1)
@@ -193,7 +194,7 @@ class TabularDataTab(QWidget):
             except Exception:
                 extra_cols = 0
         
-        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if is_snapshot_out else 0)
+        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out) else 0)
         self.table.setColumnCount(total_columns)
         
         # Use stored tab name for correct headers
@@ -215,7 +216,7 @@ class TabularDataTab(QWidget):
         elif is_hydro_out:
             # First 3 fixed columns then HPRWBC# columns for each waterbody
             column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
-        elif is_snapshot_out:
+        elif is_snapshot_out or is_screen_out:
             # First column name is SCR; extra columns have no headers
             column_headers = ["SCR"] + [""] * (total_columns - 1)
         else:
@@ -273,7 +274,7 @@ class TabularDataTab(QWidget):
                     self.table.setItem(row_index, col_index, item)
                     continue
                 
-                if is_snapshot_out:
+                if is_snapshot_out or is_screen_out:
                     # First original column uses declared type; extra columns only apply to SCRD and SCRF rows (row 2 and 3)
                     if col_index == 0:
                         # Use declared types for first column
@@ -413,6 +414,8 @@ class TabularDataTab(QWidget):
         elif self.tab_name == "Hydrodynamic Output Control":
             column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Snapshot Output Control":
+            column_headers = ["SCR"] + [""] * (num_columns - 1)
+        elif self.tab_name == "Screen Output Control":
             column_headers = ["SCR"] + [""] * (num_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
@@ -1027,6 +1030,15 @@ class CompactApp(QWidget):
                     {"label": "SCRD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRD description"},
                     {"label": "SCRF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRF description"}
                 ]
+            },
+            "Screen Output Control": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "SCRC", "type": "checkbox", "description": "Placeholder: SCRC description"},
+                    {"label": "NSCR", "type": "numeric", "description": "Placeholder: NSCR description"},
+                    {"label": "SCRD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRD description"},
+                    {"label": "SCRF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRF description"}
+                ]
             }
         }
         self.initUI()
@@ -1042,7 +1054,7 @@ class CompactApp(QWidget):
         self.tabs = {}
         # Build tabs; ensure Tributary and Distributed Tributaries are added last for display ordering
         titles = list(self.tab_data.keys())
-        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control", "Snapshot Output Control"]:
+        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control", "Snapshot Output Control", "Screen Output Control"]:
             if last_tab in titles:
                 titles.remove(last_tab)
         ordered_titles = titles
@@ -1054,6 +1066,8 @@ class CompactApp(QWidget):
             ordered_titles += ["Hydrodynamic Output Control"]
         if "Snapshot Output Control" in self.tab_data:
             ordered_titles += ["Snapshot Output Control"]
+        if "Screen Output Control" in self.tab_data:
+            ordered_titles += ["Screen Output Control"]
         for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
@@ -1196,6 +1210,13 @@ class CompactApp(QWidget):
                 current_data = snap_tab.get_data()
                 snap_tab.set_columns(1)
                 snap_tab.set_data(current_data)
+
+            # Initialize Screen Output Control with one base column and let NSCR drive extras
+            screen_tab = self.tabs.get("Screen Output Control")
+            if screen_tab and isinstance(screen_tab, TabularDataTab):
+                current_data = screen_tab.get_data()
+                screen_tab.set_columns(1)
+                screen_tab.set_data(current_data)
 
             # Sync all NPI-dependent tabs
             npi_tabs = ["Pipes"]
@@ -1403,6 +1424,9 @@ class CompactApp(QWidget):
                                             names.append(raw)
                                     headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_cols)]
                                 elif tab_name == "Snapshot Output Control":
+                                    num_cols = len(tabular_data[0]) - 1
+                                    headers = ["SNP"] + [""] * (num_cols - 1)
+                                elif tab_name == "Screen Output Control":
                                     num_cols = len(tabular_data[0]) - 1
                                     headers = ["SNP"] + [""] * (num_cols - 1)
                                 else:
