@@ -277,7 +277,20 @@ class TabularDataTab(QWidget):
                     # First original column uses declared type; extra columns only apply to SCRD and SCRF rows (row 2 and 3)
                     if col_index == 0:
                         # Use declared types for first column
-                        pass
+                        # If NSCR row, connect to trigger dynamic column rebuild
+                        if row_def.get("label") == "NSCR":
+                            widget = None
+                            # Build the default numeric widget for NSCR
+                            spinbox = QSpinBox()
+                            spinbox.setMinimum(row_def.get("min", 0))
+                            spinbox.setMaximum(row_def.get("max", 999999))
+                            try:
+                                spinbox.valueChanged.connect(self._on_numeric_value_changed)
+                                spinbox.valueChanged.connect(self.structureChanged.emit)
+                            except Exception:
+                                pass
+                            self.table.setCellWidget(row_index, col_index, spinbox)
+                            continue
                     else:
                         # Extra columns: first two rows (SCRC, NSCR) uneditable and blank; SCRD/SCRF get numeric editors
                         if row_index in (0, 1):
