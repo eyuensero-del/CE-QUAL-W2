@@ -286,7 +286,7 @@ class TabularDataTab(QWidget):
         elif is_spreadsheet_out:
             column_headers = ["SPR"] + [""] * (total_columns - 1)
         elif is_dsi_out:
-            column_headers = ["CPL"] + [""] * (total_columns - 1)
+            column_headers = ["W2L"] + [""] * (total_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -1189,7 +1189,7 @@ class CompactApp(QWidget):
         self.tabs = {}
         # Build tabs; ensure Tributary and Distributed Tributaries are added last for display ordering
         titles = list(self.tab_data.keys())
-        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control", "Snapshot Output Control", "Screen Output Control"]:
+        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control", "Snapshot Output Control", "Screen Output Control", "Profile Output Control", "Spreadsheet Output Control", "DSI W2Linkage Control"]:
             if last_tab in titles:
                 titles.remove(last_tab)
         ordered_titles = titles
@@ -1687,7 +1687,7 @@ class CompactApp(QWidget):
                                     headers = ["SPR"] + [""] * (num_cols - 1)
                                 elif tab_name == "DSI W2Linkage Control":
                                     num_cols = len(tabular_data[0]) - 1
-                                    headers = ["CPL"] + [""] * (num_cols - 1)
+                                    headers = ["W2L"] + [""] * (num_cols - 1)
                                 else:
                                     headers = []
                                 writer.writerow(headers)
