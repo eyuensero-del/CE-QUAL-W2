@@ -191,7 +191,7 @@ class TabularDataTab(QWidget):
                             max_nscr = max(max_nscr, int(w.value()))
                         except Exception:
                             pass
-                extra_cols = max(0, max_nscr)
+                extra_cols = max(0, max_nscr - 1)
             except Exception:
                 extra_cols = 0
         
