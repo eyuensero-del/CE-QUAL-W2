@@ -1215,7 +1215,7 @@ class CompactApp(QWidget):
                 "type": "tabular",
                 "rows": [
                     {"label": "CPLC", "type": "checkbox", "description": "Placeholder: CPLC description"},
-                    {"label": "NCPL", "type": "numeric", "description": "Placeholder: NCPL description"},
+                    {"label": "NCPL", "type": "numeric", "min": 1, "description": "Placeholder: NCPL description"},
                     {"label": "TECPLOT", "type": "checkbox", "description": "Placeholder: TECPLOT toggle"},
                     {"label": "CPLD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: CPLD description"},
                     {"label": "CPLF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: CPLF description"}
