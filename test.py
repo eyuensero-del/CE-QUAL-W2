@@ -455,17 +455,26 @@ class TabularDataTab(QWidget):
                             if isinstance(widget, QSpinBox):
                                 try:
                                     widget.setValue(int(value))
-                                except (ValueError, TypeError):
-                                    widget.setValue(widget.minimum())
+                                except (ValueError, TypeError, AttributeError):
+                                    try:
+                                        widget.setValue(widget.minimum())
+                                    except Exception:
+                                        pass
                             elif isinstance(widget, QDoubleSpinBox):
                                 try:
                                     widget.setValue(float(value))
-                                except (ValueError, TypeError):
-                                    widget.setValue(widget.minimum())
+                                except (ValueError, TypeError, AttributeError):
+                                    try:
+                                        widget.setValue(widget.minimum())
+                                    except Exception:
+                                        pass
                             elif isinstance(widget, QLineEdit):
                                 widget.setText(value)
                             elif isinstance(widget, QComboBox):
-                                widget.setCurrentText(value)
+                                try:
+                                    widget.setCurrentText(value)
+                                except Exception:
+                                    pass
                             elif isinstance(widget, QPushButton):
                                 widget.setText(value)
                             continue
