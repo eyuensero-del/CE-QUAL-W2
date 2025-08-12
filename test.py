@@ -402,39 +402,39 @@ class TabularDataTab(QWidget):
         for row_index, row_def in enumerate(self.row_definitions):
             row_data = [row_def['label']]
             for col_index in range(self.table.columnCount()):
-                cell_type = row_def.get("type", "checkbox")
-                if cell_type == "checkbox":
-                    item = self.table.item(row_index, col_index)
-                    value = "ON" if item and item.checkState() == Qt.CheckState.Checked else "OFF"
-                    row_data.append(value)
-                elif cell_type == "numeric":
-                    spinbox = self.table.cellWidget(row_index, col_index)
-                    if not spinbox:
-                        row_data.append("")
+                widget = self.table.cellWidget(row_index, col_index)
+                item = self.table.item(row_index, col_index)
+
+                # Prefer widget value if present
+                if widget is not None:
+                    # Checkbox widgets are represented as items, so widgets here are editors
+                    if isinstance(widget, QSpinBox):
+                        # Leave blank unless user explicitly set value
+                        is_set = widget.property("is_set")
+                        row_data.append(str(widget.value()) if is_set else "")
+                    elif isinstance(widget, QDoubleSpinBox):
+                        is_set = widget.property("is_set")
+                        row_data.append(str(widget.value()) if is_set else "")
+                    elif isinstance(widget, QLineEdit):
+                        row_data.append(widget.text())
+                    elif isinstance(widget, QComboBox):
+                        row_data.append(widget.currentText())
+                    elif isinstance(widget, QPushButton):
+                        txt = widget.text().strip()
+                        row_data.append(txt if txt and txt != "Browse..." else "")
                     else:
-                        # Leave blank unless user has explicitly changed the value
-                        is_set = spinbox.property("is_set")
-                        if is_set:
-                            row_data.append(str(spinbox.value()))
-                        else:
-                            row_data.append("")
-                elif cell_type == "text":
-                    line_edit = self.table.cellWidget(row_index, col_index)
-                    value = line_edit.text() if line_edit else ""
-                    row_data.append(value)
-                elif cell_type == "dropdown":
-                    combo_box = self.table.cellWidget(row_index, col_index)
-                    value = combo_box.currentText() if combo_box else ""
-                    row_data.append(value)
-                elif cell_type == "file":
-                    button = self.table.cellWidget(row_index, col_index)
-                    # store the displayed path (which may be relative); leave blank if untouched
-                    if button is None:
                         row_data.append("")
-                    else:
-                        txt = button.text().strip()
-                        value = txt if txt and txt != "Browse..." else ""
+                    continue
+
+                # If no widget, read from item
+                if item is not None:
+                    if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                        value = "ON" if item.checkState() == Qt.CheckState.Checked else "OFF"
                         row_data.append(value)
+                    else:
+                        row_data.append(item.text())
+                else:
+                    row_data.append("")
             data.append(row_data)
         return data
 
@@ -449,36 +449,34 @@ class TabularDataTab(QWidget):
                 row_data = data_list[row_index]
                 for col_index, value in enumerate(row_data[1:]):
                     if col_index < self.table.columnCount():
-                        cell_type = row_def.get("type", "checkbox")
-                        if cell_type == "checkbox":
-                            item = self.table.item(row_index, col_index)
-                            if item:
-                                item.setCheckState(Qt.CheckState.Checked if value == "ON" else Qt.CheckState.Unchecked)
-                        elif cell_type == "numeric":
-                            spinbox = self.table.cellWidget(row_index, col_index)
-                            if spinbox:
+                        widget = self.table.cellWidget(row_index, col_index)
+                        item = self.table.item(row_index, col_index)
+                        if widget is not None:
+                            if isinstance(widget, QSpinBox):
                                 try:
-                                    if isinstance(spinbox, QSpinBox):
-                                        spinbox.setValue(int(value))
-                                    elif isinstance(spinbox, QDoubleSpinBox):
-                                        spinbox.setValue(float(value))
+                                    widget.setValue(int(value))
                                 except (ValueError, TypeError):
-                                    if isinstance(spinbox, QSpinBox):
-                                        spinbox.setValue(spinbox.minimum())
-                                    elif isinstance(spinbox, QDoubleSpinBox):
-                                        spinbox.setValue(spinbox.minimum())
-                        elif cell_type == "text":
-                            line_edit = self.table.cellWidget(row_index, col_index)
-                            if line_edit:
-                                line_edit.setText(value)
-                        elif cell_type == "dropdown":
-                            combo_box = self.table.cellWidget(row_index, col_index)
-                            if combo_box:
-                                combo_box.setCurrentText(value)
-                        elif cell_type == "file":
-                            button = self.table.cellWidget(row_index, col_index)
-                            if button:
-                                button.setText(value)
+                                    widget.setValue(widget.minimum())
+                            elif isinstance(widget, QDoubleSpinBox):
+                                try:
+                                    widget.setValue(float(value))
+                                except (ValueError, TypeError):
+                                    widget.setValue(widget.minimum())
+                            elif isinstance(widget, QLineEdit):
+                                widget.setText(value)
+                            elif isinstance(widget, QComboBox):
+                                widget.setCurrentText(value)
+                            elif isinstance(widget, QPushButton):
+                                widget.setText(value)
+                            continue
+
+                        # No widget; operate on item
+                        if item is not None:
+                            if item.flags() & Qt.ItemFlag.ItemIsUserCheckable:
+                                item.setCheckState(Qt.CheckState.Checked if value == "ON" else Qt.CheckState.Unchecked)
+                            else:
+                                item.setText(value)
+                        # else: nothing to set
 
     def clear_fields(self):
         """Clears all fields in the table based on their type."""
@@ -1262,8 +1260,13 @@ class CompactApp(QWidget):
                             tabular_data = tab_widget.get_data()
                             if tabular_data:
                                 if tab_name in ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea",
-                                                "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]:
-                                    headers = [f"WB{i+1}" for i in range(len(tabular_data[0]) - 1)]
+                                                "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity", "Hydrodynamic Output Control"]:
+                                    if tab_name == "Hydrodynamic Output Control":
+                                        # NWB-dependent columns with 3 fixed columns
+                                        num_dynamic = (len(tabular_data[0]) - 1) - 3
+                                        headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_dynamic)]
+                                    else:
+                                        headers = [f"WB{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures", "Distributed Tributaries"]:
                                     headers = [f"BR{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 elif tab_name == "Tributary":
@@ -1277,27 +1280,20 @@ class CompactApp(QWidget):
                                             raw = raw.strip()
                                             names.append(raw)
                                     headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_cols)]
-                                elif tab_name == "Pipes":
-                                    headers = [f"PIPE{i+1}" for i in range(len(tabular_data[0]) - 1)]
-                                elif tab_name == "Spillway":
-                                    headers = [f"SP{i+1}" for i in range(len(tabular_data[0]) - 1)]
-                                elif tab_name == "Gates":
-                                    headers = [f"GATE{i+1}" for i in range(len(tabular_data[0]) - 1)]
-                                elif tab_name == "Pumps":
-                                    headers = [f"PUMP{i+1}" for i in range(len(tabular_data[0]) - 1)]
-                                elif tab_name == "Internal Weirs":
-                                    headers = [f"IW{i+1}" for i in range(len(tabular_data[0]) - 1)]
-                                elif tab_name == "Withdrawals":
-                                    headers = [f"WD{i+1}" for i in range(len(tabular_data[0]) - 1)]
                                 else:
                                     headers = []
                                 writer.writerow(headers)
                                 
                                 for row_index, row_data in enumerate(tabular_data):
-                                    # Skip the TRNAME row for Tributary outputs if desired? Requirement says only headers include names
+                                    # Skip the TRNAME row for Tributary outputs
                                     if tab_name == "Tributary" and row_index == 0:
                                         continue
-                                    writer.writerow(row_data[1:])
+                                    # For Hydrodynamic Output Control, row_data includes HNAME at index 0 and then FMTH, HMULT, HPRWBC# values
+                                    if tab_name == "Hydrodynamic Output Control":
+                                        # Exclude the first element (label) but include all columns after
+                                        writer.writerow(row_data[1:])
+                                    else:
+                                        writer.writerow(row_data[1:])
                         writer.writerow([])
                 
                 QMessageBox.information(self, "Success", "All data saved successfully!")
