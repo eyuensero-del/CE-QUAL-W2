@@ -217,8 +217,8 @@ class TabularDataTab(QWidget):
             # First 3 fixed columns then HPRWBC# columns for each waterbody
             column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
         elif is_snapshot_out or is_screen_out:
-            # First column name is SCR; extra columns have no headers
-            column_headers = ["SCR"] + [""] * (total_columns - 1)
+            # First column name is SNP for snapshot/screen; extra columns have no headers
+            column_headers = ["SNP"] + [""] * (total_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -275,13 +275,10 @@ class TabularDataTab(QWidget):
                     continue
                 
                 if is_snapshot_out or is_screen_out:
-                    # First original column uses declared type; extra columns only apply to SCRD and SCRF rows (row 2 and 3)
+                    # First original column uses declared type; extra columns only apply to SNPD/SNPF rows (row 2 and 3)
                     if col_index == 0:
                         # Use declared types for first column
-                        # If NSCR row, connect to trigger dynamic column rebuild
-                        if row_def.get("label") == "NSCR":
-                            widget = None
-                            # Build the default numeric widget for NSCR
+                        if (is_snapshot_out and row_def.get("label") == "NSNP") or (is_screen_out and row_def.get("label") == "NSCR"):
                             spinbox = QSpinBox()
                             spinbox.setMinimum(row_def.get("min", 0))
                             spinbox.setMaximum(row_def.get("max", 999999))
@@ -293,11 +290,10 @@ class TabularDataTab(QWidget):
                             self.table.setCellWidget(row_index, col_index, spinbox)
                             continue
                     else:
-                        # Extra columns: first two rows (SCRC, NSCR) uneditable and blank; SCRD/SCRF get numeric editors
-                        if row_index in (0, 1):
-                            # Place a disabled item
+                        # Extra columns: first two rows (SNPC/NSNP or SCRC/NSCR) uneditable and blank; SNPD/SNPF get numeric editors
+                        if (is_snapshot_out and row_index in (0, 1)) or (is_screen_out and row_index in (0, 1)):
                             item = QTableWidgetItem("")
-                            item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # not editable
+                            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
                             self.table.setItem(row_index, col_index, item)
                             continue
                         if row_index in (2, 3):
@@ -309,12 +305,6 @@ class TabularDataTab(QWidget):
                                 spin.valueChanged.connect(self._on_numeric_value_changed)
                             except Exception:
                                 pass
-                            # If NSCR changes in Snapshot Output Control, trigger dynamic column update
-                            if self.tab_name == "Snapshot Output Control" and row_def.get("label") == "NSCR" and col_index == 0:
-                                try:
-                                    spin.valueChanged.connect(self.structureChanged.emit)
-                                except Exception:
-                                    pass
                             self.table.setCellWidget(row_index, col_index, spin)
                             continue
                     # If falling through for first column, handled below as default
@@ -414,9 +404,9 @@ class TabularDataTab(QWidget):
         elif self.tab_name == "Hydrodynamic Output Control":
             column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Snapshot Output Control":
-            column_headers = ["SCR"] + [""] * (num_columns - 1)
+            column_headers = ["SNP"] + [""] * (num_columns - 1)
         elif self.tab_name == "Screen Output Control":
-            column_headers = ["SCR"] + [""] * (num_columns - 1)
+            column_headers = ["SNP"] + [""] * (num_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -1025,10 +1015,10 @@ class CompactApp(QWidget):
             "Snapshot Output Control": {
                 "type": "tabular",
                 "rows": [
-                    {"label": "SCRC", "type": "checkbox", "description": "Placeholder: SCRC description"},
-                    {"label": "NSCR", "type": "numeric", "description": "Placeholder: NSCR description"},
-                    {"label": "SCRD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRD description"},
-                    {"label": "SCRF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRF description"}
+                    {"label": "SNPC", "type": "checkbox", "description": "Placeholder: SCRC description"},
+                    {"label": "NSNP", "type": "numeric", "description": "Placeholder: NSCR description"},
+                    {"label": "SNPD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRD description"},
+                    {"label": "SNPF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRF description"}
                 ]
             },
             "Screen Output Control": {
@@ -1084,6 +1074,9 @@ class CompactApp(QWidget):
         # Connect NSCR changes to update Snapshot Output Control columns dynamically
         if isinstance(self.tabs.get("Snapshot Output Control"), TabularDataTab):
             self.tabs["Snapshot Output Control"].structureChanged.connect(self.update_snapshot_columns)
+        # Connect NSCR changes to update Screen Output Control columns dynamically
+        if isinstance(self.tabs.get("Screen Output Control"), TabularDataTab):
+            self.tabs["Screen Output Control"].structureChanged.connect(self.update_screen_columns)
         
         self.tab_list.currentRowChanged.connect(self.sync_tabs)
 
@@ -1377,6 +1370,25 @@ class CompactApp(QWidget):
                     pass
         finally:
             self._snapshot_updating = False
+
+    def update_screen_columns(self):
+        """Rebuild columns for Screen Output Control when NSCR changes without re-syncing other tabs."""
+        if getattr(self, "_screen_updating", False):
+            return
+        self._screen_updating = True
+        try:
+            if getattr(self, "_sync_in_progress", False):
+                return
+            screen_tab = self.tabs.get("Screen Output Control")
+            if screen_tab and isinstance(screen_tab, TabularDataTab):
+                try:
+                    current_data = screen_tab.get_data()
+                    screen_tab.set_columns(1)
+                    screen_tab.set_data(current_data)
+                except Exception:
+                    pass
+        finally:
+            self._screen_updating = False
 
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
