@@ -295,6 +295,12 @@ class TabularDataTab(QWidget):
                                 spin.valueChanged.connect(self._on_numeric_value_changed)
                             except Exception:
                                 pass
+                            # If NSCR changes in Snapshot Output Control, trigger dynamic column update
+                            if self.tab_name == "Snapshot Output Control" and row_def.get("label") == "NSCR" and col_index == 0:
+                                try:
+                                    spin.valueChanged.connect(self.structureChanged.emit)
+                                except Exception:
+                                    pass
                             self.table.setCellWidget(row_index, col_index, spin)
                             continue
                     # If falling through for first column, handled below as default
@@ -1048,6 +1054,9 @@ class CompactApp(QWidget):
         # Connect real-time structure changes from the Structures tab to sync immediately
         if isinstance(self.tabs.get("Structures"), TabularDataTab):
             self.tabs["Structures"].structureChanged.connect(self.update_structures_dynamic_rows)
+        # Connect NSCR changes to update Snapshot Output Control columns dynamically
+        if isinstance(self.tabs.get("Snapshot Output Control"), TabularDataTab):
+            self.tabs["Snapshot Output Control"].structureChanged.connect(self.update_snapshot_columns)
         
         self.tab_list.currentRowChanged.connect(self.sync_tabs)
 
@@ -1181,7 +1190,7 @@ class CompactApp(QWidget):
                 tab = self.tabs.get(tab_name)
                 if tab and isinstance(tab, TabularDataTab):
                     current_data = tab.get_data()
-                    tab.set_columns(max(1, npi_value))
+                    tab.set_columns(max(1, npi_value))  # Ensure at least 1 column
                     tab.set_data(current_data)
 
             # Sync all NSP-dependent tabs
@@ -1311,6 +1320,20 @@ class CompactApp(QWidget):
                             "description": "Width of structure (line sink), m"
                         })
                     structures_tab.set_row_definitions(new_rows)
+            except Exception:
+                pass
+
+    def update_snapshot_columns(self):
+        """Rebuild columns for Snapshot Output Control when NSCR changes without re-syncing other tabs."""
+        if getattr(self, "_sync_in_progress", False):
+            return
+        snap_tab = self.tabs.get("Snapshot Output Control")
+        if snap_tab and isinstance(snap_tab, TabularDataTab):
+            try:
+                current_data = snap_tab.get_data()
+                # Re-run set_columns with at least 1 base col; it will add extras based on NSCR
+                snap_tab.set_columns(max(1, snap_tab.table.columnCount()))
+                snap_tab.set_data(current_data)
             except Exception:
                 pass
 
