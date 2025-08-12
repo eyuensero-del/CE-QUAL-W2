@@ -267,7 +267,19 @@ class TabularDataTab(QWidget):
                 if is_profile_out:
                     # Only PRFD/PRFF/IPRF have data in extra columns; first column uses declared type
                     if col_index == 0:
-                        pass
+                        if row_def.get("label") in ("NPRF", "NIPRF"):
+                            pspin = QSpinBox()
+                            pspin.setMinimum(1)
+                            pspin.setMaximum(row_def.get("max", 999999))
+                            try:
+                                if pspin.value() < 1:
+                                    pspin.setValue(1)
+                                pspin.valueChanged.connect(self._on_numeric_value_changed)
+                                pspin.valueChanged.connect(self.structureChanged.emit)
+                            except Exception:
+                                pass
+                            self.table.setCellWidget(row_index, col_index, pspin)
+                            continue
                     else:
                         if row_index in (0, 1, 2):
                             # PRFC, NPRF, NIPRF: leave blank and uneditable
