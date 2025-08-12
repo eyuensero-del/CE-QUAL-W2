@@ -491,28 +491,43 @@ class TabularDataTab(QWidget):
         """Clears all fields in the table based on their type."""
         for row_index, row_def in enumerate(self.row_definitions):
             for col_index in range(self.table.columnCount()):
-                cell_type = row_def.get("type", "checkbox")
-                if cell_type == "checkbox":
-                    item = self.table.item(row_index, col_index)
-                    if item:
-                        item.setCheckState(Qt.CheckState.Unchecked)
-                elif cell_type == "numeric":
-                    spinbox = self.table.cellWidget(row_index, col_index)
-                    if spinbox:
-                        spinbox.setValue(spinbox.minimum())
-                elif cell_type == "text":
-                    line_edit = self.table.cellWidget(row_index, col_index)
-                    if line_edit:
-                        line_edit.clear()
-                elif cell_type == "dropdown":
-                    combo_box = self.table.cellWidget(row_index, col_index)
-                    if combo_box:
-                        combo_box.setCurrentIndex(0)
-                elif cell_type == "file":
-                    button = self.table.cellWidget(row_index, col_index)
-                    if button:
-                        button.setText("") # Clear the button text
-                        button.setProperty("file_path", None) # Clear the file path property
+                widget = self.table.cellWidget(row_index, col_index)
+                item = self.table.item(row_index, col_index)
+
+                if item and (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
+                    item.setCheckState(Qt.CheckState.Unchecked)
+                    continue
+
+                if isinstance(widget, QSpinBox):
+                    widget.setValue(widget.minimum())
+                elif isinstance(widget, QDoubleSpinBox):
+                    widget.setValue(widget.minimum())
+                elif isinstance(widget, QLineEdit):
+                    widget.clear()
+                elif isinstance(widget, QComboBox):
+                    widget.setCurrentIndex(0)
+                elif isinstance(widget, QPushButton):
+                    widget.setText("")
+                    widget.setProperty("file_path", None)
+                else:
+                    # Fallback based on declared type
+                    cell_type = row_def.get("type", "checkbox")
+                    if cell_type == "numeric" and widget is not None:
+                        try:
+                            widget.setValue(widget.minimum())
+                        except Exception:
+                            pass
+                    elif cell_type == "text" and widget is not None:
+                        try:
+                            widget.clear()
+                        except Exception:
+                            pass
+                    elif cell_type == "dropdown" and widget is not None:
+                        try:
+                            widget.setCurrentIndex(0)
+                        except Exception:
+                            pass
+                    # else: nothing to clear
 
 class CompactApp(QWidget):
     APP_STATE_FILE = "app_state.json"
