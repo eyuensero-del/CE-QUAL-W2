@@ -178,11 +178,12 @@ class TabularDataTab(QWidget):
         is_screen_out = (self.tab_name == "Screen Output Control")
         extra_cols = 0
         if is_snapshot_out or is_screen_out:
-            # Determine extra columns from NSCR (row index 1) values (max across columns)
+            # Determine extra columns from NS count values (max across columns)
             try:
-                nscr_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NSCR"), 1)
+                target_label = "NSNP" if is_snapshot_out else "NSCR"
+                nscr_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == target_label), 1)
                 max_nscr = 0
-                # Check existing widgets in NSCR row for a value
+                # Check existing widgets in NS row for a value
                 for c in range(self.table.columnCount()):
                     w = self.table.cellWidget(nscr_index, c)
                     if isinstance(w, (QSpinBox, QDoubleSpinBox)):
@@ -280,8 +281,12 @@ class TabularDataTab(QWidget):
                         # Use declared types for first column
                         if (is_snapshot_out and row_def.get("label") == "NSNP") or (is_screen_out and row_def.get("label") == "NSCR"):
                             spinbox = QSpinBox()
-                            spinbox.setMinimum(row_def.get("min", 0))
+                            spinbox.setMinimum(1)
                             spinbox.setMaximum(row_def.get("max", 999999))
+                            try:
+                                spinbox.setValue(spinbox.minimum())
+                            except Exception:
+                                pass
                             try:
                                 spinbox.valueChanged.connect(self._on_numeric_value_changed)
                                 spinbox.valueChanged.connect(self.structureChanged.emit)
