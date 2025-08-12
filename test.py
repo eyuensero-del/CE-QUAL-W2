@@ -177,6 +177,7 @@ class TabularDataTab(QWidget):
         is_snapshot_out = (self.tab_name == "Snapshot Output Control")
         is_screen_out = (self.tab_name == "Screen Output Control")
         is_profile_out = (self.tab_name == "Profile Output Control")
+        is_spreadsheet_out = (self.tab_name == "Spreadsheet Output Control")
         extra_cols = 0
         if is_snapshot_out or is_screen_out:
             # Determine extra columns from NS count values (max across columns)
@@ -218,8 +219,31 @@ class TabularDataTab(QWidget):
                 extra_cols = max(0, (max_nprf * max_niprf) - 1)
             except Exception:
                 extra_cols = 0
+        elif is_spreadsheet_out:
+            # Determine extra columns from product NSPR * NISPR (minus 1 base column)
+            try:
+                nspr_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NSPR"), 1)
+                nispr_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NISPR"), 2)
+                max_nspr = 1
+                max_nispr = 1
+                for c in range(self.table.columnCount()):
+                    wn = self.table.cellWidget(nspr_index, c)
+                    wi = self.table.cellWidget(nispr_index, c)
+                    if isinstance(wn, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            max_nspr = max(max_nspr, int(wn.value()))
+                        except Exception:
+                            pass
+                    if isinstance(wi, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            max_nispr = max(max_nispr, int(wi.value()))
+                        except Exception:
+                            pass
+                extra_cols = max(0, (max_nspr * max_nispr) - 1)
+            except Exception:
+                extra_cols = 0
         
-        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out or is_profile_out) else 0)
+        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out or is_profile_out or is_spreadsheet_out) else 0)
         self.table.setColumnCount(total_columns)
         
         # Use stored tab name for correct headers
@@ -246,6 +270,8 @@ class TabularDataTab(QWidget):
             column_headers = ["SNP"] + [""] * (total_columns - 1)
         elif is_profile_out:
             column_headers = ["PRFC"] + [""] * (total_columns - 1)
+        elif is_spreadsheet_out:
+            column_headers = ["SPR"] + [""] * (total_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -264,31 +290,30 @@ class TabularDataTab(QWidget):
                 except Exception:
                     pass
                 
-                if is_profile_out:
-                    # Only PRFD/PRFF/IPRF have data in extra columns; first column uses declared type
+                if is_spreadsheet_out:
                     if col_index == 0:
-                        if row_def.get("label") in ("NPRF", "NIPRF"):
-                            pspin = QSpinBox()
-                            pspin.setMinimum(1)
-                            pspin.setMaximum(row_def.get("max", 999999))
+                        # For first column, leave declared type; ensure NSPR/NISPR min=1 and dynamic update
+                        if row_def.get("label") in ("NSPR", "NISPR"):
+                            sspin = QSpinBox()
+                            sspin.setMinimum(1)
+                            sspin.setMaximum(row_def.get("max", 999999))
                             try:
-                                if pspin.value() < 1:
-                                    pspin.setValue(1)
-                                pspin.valueChanged.connect(self._on_numeric_value_changed)
-                                pspin.valueChanged.connect(self.structureChanged.emit)
+                                if sspin.value() < 1:
+                                    sspin.setValue(1)
+                                sspin.valueChanged.connect(self._on_numeric_value_changed)
+                                sspin.valueChanged.connect(self.structureChanged.emit)
                             except Exception:
                                 pass
-                            self.table.setCellWidget(row_index, col_index, pspin)
+                            self.table.setCellWidget(row_index, col_index, sspin)
                             continue
                     else:
+                        # Extra columns: first three rows (SPRC, NSPR, NISPR) uneditable; SPRD/SPRF numeric 2 decimals; ISPR integer
                         if row_index in (0, 1, 2):
-                            # PRFC, NPRF, NIPRF: leave blank and uneditable
                             item = QTableWidgetItem("")
                             item.setFlags(Qt.ItemFlag.ItemIsEnabled)
                             self.table.setItem(row_index, col_index, item)
                             continue
                         if row_index in (3, 4):
-                            # PRFD, PRFF: numeric 2 decimals
                             spin = QDoubleSpinBox()
                             spin.setDecimals(2)
                             spin.setMinimum(0.0)
@@ -300,15 +325,14 @@ class TabularDataTab(QWidget):
                             self.table.setCellWidget(row_index, col_index, spin)
                             continue
                         if row_index == 5:
-                            # IPRF integer
-                            spin = QSpinBox()
-                            spin.setMinimum(0)
-                            spin.setMaximum(999999)
+                            spn = QSpinBox()
+                            spn.setMinimum(0)
+                            spn.setMaximum(999999)
                             try:
-                                spin.valueChanged.connect(self._on_numeric_value_changed)
+                                spn.valueChanged.connect(self._on_numeric_value_changed)
                             except Exception:
                                 pass
-                            self.table.setCellWidget(row_index, col_index, spin)
+                            self.table.setCellWidget(row_index, col_index, spn)
                             continue
                 
                 if is_hydro_out:
@@ -487,6 +511,8 @@ class TabularDataTab(QWidget):
             column_headers = ["SNP"] + [""] * (num_columns - 1)
         elif self.tab_name == "Profile Output Control":
             column_headers = ["PRFC"] + [""] * (num_columns - 1)
+        elif self.tab_name == "Spreadsheet Output Control":
+            column_headers = ["SPR"] + [""] * (num_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -1124,6 +1150,17 @@ class CompactApp(QWidget):
                     {"label": "ISPR", "type": "numeric", "description": "Placeholder: ISPR description"}
                 ]
             },
+            "Spreadsheet Output Control": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "SPRC", "type": "checkbox", "description": "Placeholder: SPRC description"},
+                    {"label": "NSPR", "type": "numeric", "description": "Placeholder: NSPR description"},
+                    {"label": "NISPR", "type": "numeric", "description": "Placeholder: NISPR description"},
+                    {"label": "SPRD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SPRD description"},
+                    {"label": "SPRF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SPRF description"},
+                    {"label": "ISPR", "type": "numeric", "description": "Placeholder: ISPR description"}
+                ]
+            },
         }
         self.initUI()
         self.load_gui_state()
@@ -1154,6 +1191,8 @@ class CompactApp(QWidget):
             ordered_titles += ["Screen Output Control"]
         if "Profile Output Control" in self.tab_data:
             ordered_titles += ["Profile Output Control"]
+        if "Spreadsheet Output Control" in self.tab_data:
+            ordered_titles += ["Spreadsheet Output Control"]
         for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
@@ -1176,6 +1215,9 @@ class CompactApp(QWidget):
         # Connect NPRF/NIPRF changes to update Profile Output Control columns dynamically
         if isinstance(self.tabs.get("Profile Output Control"), TabularDataTab):
             self.tabs["Profile Output Control"].structureChanged.connect(self.update_profile_columns)
+        # Connect NSPR/NISPR changes to update Spreadsheet Output Control dynamically
+        if isinstance(self.tabs.get("Spreadsheet Output Control"), TabularDataTab):
+            self.tabs["Spreadsheet Output Control"].structureChanged.connect(self.update_spreadsheet_columns)
         
         self.tab_list.currentRowChanged.connect(self.sync_tabs)
 
@@ -1316,6 +1358,13 @@ class CompactApp(QWidget):
                 current_data = profile_tab.get_data()
                 profile_tab.set_columns(1)
                 profile_tab.set_data(current_data)
+
+            # Initialize Spreadsheet Output Control with one base column and let NSPR*NISPR drive extras
+            spreadsheet_tab = self.tabs.get("Spreadsheet Output Control")
+            if spreadsheet_tab and isinstance(spreadsheet_tab, TabularDataTab):
+                current_data = spreadsheet_tab.get_data()
+                spreadsheet_tab.set_columns(1)
+                spreadsheet_tab.set_data(current_data)
 
             # Sync all NPI-dependent tabs
             npi_tabs = ["Pipes"]
@@ -1515,6 +1564,25 @@ class CompactApp(QWidget):
         finally:
             self._profile_updating = False
 
+    def update_spreadsheet_columns(self):
+        """Rebuild columns for Spreadsheet Output Control when NSPR/NISPR change without re-syncing other tabs."""
+        if getattr(self, "_spreadsheet_updating", False):
+            return
+        self._spreadsheet_updating = True
+        try:
+            if getattr(self, "_sync_in_progress", False):
+                return
+            spreadsheet_tab = self.tabs.get("Spreadsheet Output Control")
+            if spreadsheet_tab and isinstance(spreadsheet_tab, TabularDataTab):
+                try:
+                    current_data = spreadsheet_tab.get_data()
+                    spreadsheet_tab.set_columns(1)
+                    spreadsheet_tab.set_data(current_data)
+                except Exception:
+                    pass
+        finally:
+            self._spreadsheet_updating = False
+
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
         tab_name = item.text()
@@ -1569,6 +1637,9 @@ class CompactApp(QWidget):
                                 elif tab_name == "Profile Output Control":
                                     num_cols = len(tabular_data[0]) - 1
                                     headers = ["PRFC"] + [""] * (num_cols - 1)
+                                elif tab_name == "Spreadsheet Output Control":
+                                    num_cols = len(tabular_data[0]) - 1
+                                    headers = ["SPR"] + [""] * (num_cols - 1)
                                 else:
                                     headers = []
                                 writer.writerow(headers)
