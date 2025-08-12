@@ -1269,6 +1269,9 @@ class CompactApp(QWidget):
         # Connect NVPL changes to update DSI W2Linkage Control dynamically
         if isinstance(self.tabs.get("DSI W2Linkage Control"), TabularDataTab):
             self.tabs["DSI W2Linkage Control"].structureChanged.connect(self.update_dsi_columns)
+        # Connect NCPL changes to update Contour Plot Output Control dynamically
+        if isinstance(self.tabs.get("Contour Plot Output Control"), TabularDataTab):
+            self.tabs["Contour Plot Output Control"].structureChanged.connect(self.update_contour_columns)
         
         self.tab_list.currentRowChanged.connect(self.sync_tabs)
 
@@ -1659,6 +1662,25 @@ class CompactApp(QWidget):
                     pass
         finally:
             self._dsi_updating = False
+
+    def update_contour_columns(self):
+        """Rebuild columns for Contour Plot Output Control when NCPL changes without re-syncing other tabs."""
+        if getattr(self, "_contour_updating", False):
+            return
+        self._contour_updating = True
+        try:
+            if getattr(self, "_sync_in_progress", False):
+                return
+            contour_tab = self.tabs.get("Contour Plot Output Control")
+            if contour_tab and isinstance(contour_tab, TabularDataTab):
+                try:
+                    current_data = contour_tab.get_data()
+                    contour_tab.set_columns(1)
+                    contour_tab.set_data(current_data)
+                except Exception:
+                    pass
+        finally:
+            self._contour_updating = False
 
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
