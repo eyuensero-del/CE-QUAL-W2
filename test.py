@@ -337,6 +337,22 @@ class TabularDataTab(QWidget):
                                 pass
                             self.table.setCellWidget(row_index, col_index, nv)
                             continue
+                if is_contour_out:
+                    if col_index == 0:
+                        # For first column, leave declared type; ensure NCPL min=1 and dynamic update
+                        if row_def.get("label") == "NCPL":
+                            cspin = QSpinBox()
+                            cspin.setMinimum(1)
+                            cspin.setMaximum(row_def.get("max", 999999))
+                            try:
+                                if cspin.value() < 1:
+                                    cspin.setValue(1)
+                                cspin.valueChanged.connect(self._on_numeric_value_changed)
+                                cspin.valueChanged.connect(self.structureChanged.emit)
+                            except Exception:
+                                pass
+                            self.table.setCellWidget(row_index, col_index, cspin)
+                            continue
                     else:
                         # Extra columns: first two rows (VPLC, NVPL) uneditable and blank; VPLD/VPLF get numeric editors
                         if row_index in (0, 1):
