@@ -176,6 +176,7 @@ class TabularDataTab(QWidget):
         is_hydro_out = (self.tab_name == "Hydrodynamic Output Control")
         is_snapshot_out = (self.tab_name == "Snapshot Output Control")
         is_screen_out = (self.tab_name == "Screen Output Control")
+        is_profile_out = (self.tab_name == "Profile Output Control")
         extra_cols = 0
         if is_snapshot_out or is_screen_out:
             # Determine extra columns from NS count values (max across columns)
@@ -194,8 +195,31 @@ class TabularDataTab(QWidget):
                 extra_cols = max(0, max_nscr - 1)
             except Exception:
                 extra_cols = 0
+        elif is_profile_out:
+            # Determine extra columns from product NPRF * NIPRF (minus 1 base column)
+            try:
+                nprf_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NPRF"), 1)
+                niprf_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NIPRF"), 2)
+                max_nprf = 1
+                max_niprf = 1
+                for c in range(self.table.columnCount()):
+                    wn = self.table.cellWidget(nprf_index, c)
+                    wi = self.table.cellWidget(niprf_index, c)
+                    if isinstance(wn, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            max_nprf = max(max_nprf, int(wn.value()))
+                        except Exception:
+                            pass
+                    if isinstance(wi, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            max_niprf = max(max_niprf, int(wi.value()))
+                        except Exception:
+                            pass
+                extra_cols = max(0, (max_nprf * max_niprf) - 1)
+            except Exception:
+                extra_cols = 0
         
-        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out) else 0)
+        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out or is_profile_out) else 0)
         self.table.setColumnCount(total_columns)
         
         # Use stored tab name for correct headers
@@ -220,6 +244,8 @@ class TabularDataTab(QWidget):
         elif is_snapshot_out or is_screen_out:
             # First column name is SNP for snapshot/screen; extra columns have no headers
             column_headers = ["SNP"] + [""] * (total_columns - 1)
+        elif is_profile_out:
+            column_headers = ["PRFC"] + [""] * (total_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -237,6 +263,41 @@ class TabularDataTab(QWidget):
                     self.table.takeItem(row_index, col_index)
                 except Exception:
                     pass
+                
+                if is_profile_out:
+                    # Only PRFD/PRFF/IPRF have data in extra columns; first column uses declared type
+                    if col_index == 0:
+                        pass
+                    else:
+                        if row_index in (0, 1, 2):
+                            # PRFC, NPRF, NIPRF: leave blank and uneditable
+                            item = QTableWidgetItem("")
+                            item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+                            self.table.setItem(row_index, col_index, item)
+                            continue
+                        if row_index in (3, 4):
+                            # PRFD, PRFF: numeric 2 decimals
+                            spin = QDoubleSpinBox()
+                            spin.setDecimals(2)
+                            spin.setMinimum(0.0)
+                            spin.setMaximum(999999.0)
+                            try:
+                                spin.valueChanged.connect(self._on_numeric_value_changed)
+                            except Exception:
+                                pass
+                            self.table.setCellWidget(row_index, col_index, spin)
+                            continue
+                        if row_index == 5:
+                            # IPRF integer
+                            spin = QSpinBox()
+                            spin.setMinimum(0)
+                            spin.setMaximum(999999)
+                            try:
+                                spin.valueChanged.connect(self._on_numeric_value_changed)
+                            except Exception:
+                                pass
+                            self.table.setCellWidget(row_index, col_index, spin)
+                            continue
                 
                 if is_hydro_out:
                     # Column-specific behavior for Hydrodynamic Output Control
@@ -412,6 +473,8 @@ class TabularDataTab(QWidget):
             column_headers = ["SNP"] + [""] * (num_columns - 1)
         elif self.tab_name == "Screen Output Control":
             column_headers = ["SNP"] + [""] * (num_columns - 1)
+        elif self.tab_name == "Profile Output Control":
+            column_headers = ["PRFC"] + [""] * (num_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -1034,7 +1097,21 @@ class CompactApp(QWidget):
                     {"label": "SCRD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRD description"},
                     {"label": "SCRF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRF description"}
                 ]
-            }
+            },
+            "Profile Output Control": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "PRFC", "type": "checkbox", "description": "Placeholder: PRFC description"},
+                    {"label": "NPRF", "type": "numeric", "description": "Placeholder: NPRF description"},
+                    {"label": "NIPRF", "type": "numeric", "description": "Placeholder: NIPRF description"},
+                    {"label": "PRFD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: PRFD description"},
+                    {"label": "PRFF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: PRFF description"},
+                    {"label": "IPRF", "type": "numeric", "description": "Placeholder: IPRF description"},
+                    {"label": "SPRD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SPRD description"},
+                    {"label": "SPRF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SPRF description"},
+                    {"label": "ISPR", "type": "numeric", "description": "Placeholder: ISPR description"}
+                ]
+            },
         }
         self.initUI()
         self.load_gui_state()
@@ -1063,6 +1140,8 @@ class CompactApp(QWidget):
             ordered_titles += ["Snapshot Output Control"]
         if "Screen Output Control" in self.tab_data:
             ordered_titles += ["Screen Output Control"]
+        if "Profile Output Control" in self.tab_data:
+            ordered_titles += ["Profile Output Control"]
         for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
@@ -1082,6 +1161,9 @@ class CompactApp(QWidget):
         # Connect NSCR changes to update Screen Output Control columns dynamically
         if isinstance(self.tabs.get("Screen Output Control"), TabularDataTab):
             self.tabs["Screen Output Control"].structureChanged.connect(self.update_screen_columns)
+        # Connect NPRF/NIPRF changes to update Profile Output Control columns dynamically
+        if isinstance(self.tabs.get("Profile Output Control"), TabularDataTab):
+            self.tabs["Profile Output Control"].structureChanged.connect(self.update_profile_columns)
         
         self.tab_list.currentRowChanged.connect(self.sync_tabs)
 
@@ -1215,6 +1297,13 @@ class CompactApp(QWidget):
                 current_data = screen_tab.get_data()
                 screen_tab.set_columns(1)
                 screen_tab.set_data(current_data)
+
+            # Initialize Profile Output Control with one base column and let NPRF*NIPRF drive extras
+            profile_tab = self.tabs.get("Profile Output Control")
+            if profile_tab and isinstance(profile_tab, TabularDataTab):
+                current_data = profile_tab.get_data()
+                profile_tab.set_columns(1)
+                profile_tab.set_data(current_data)
 
             # Sync all NPI-dependent tabs
             npi_tabs = ["Pipes"]
@@ -1395,6 +1484,25 @@ class CompactApp(QWidget):
         finally:
             self._screen_updating = False
 
+    def update_profile_columns(self):
+        """Rebuild columns for Profile Output Control when NPRF/NIPRF change without re-syncing other tabs."""
+        if getattr(self, "_profile_updating", False):
+            return
+        self._profile_updating = True
+        try:
+            if getattr(self, "_sync_in_progress", False):
+                return
+            profile_tab = self.tabs.get("Profile Output Control")
+            if profile_tab and isinstance(profile_tab, TabularDataTab):
+                try:
+                    current_data = profile_tab.get_data()
+                    profile_tab.set_columns(1)
+                    profile_tab.set_data(current_data)
+                except Exception:
+                    pass
+        finally:
+            self._profile_updating = False
+
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
         tab_name = item.text()
@@ -1446,6 +1554,9 @@ class CompactApp(QWidget):
                                 elif tab_name == "Screen Output Control":
                                     num_cols = len(tabular_data[0]) - 1
                                     headers = ["SNP"] + [""] * (num_cols - 1)
+                                elif tab_name == "Profile Output Control":
+                                    num_cols = len(tabular_data[0]) - 1
+                                    headers = ["PRFC"] + [""] * (num_cols - 1)
                                 else:
                                     headers = []
                                 writer.writerow(headers)
