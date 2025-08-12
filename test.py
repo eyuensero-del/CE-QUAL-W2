@@ -178,6 +178,7 @@ class TabularDataTab(QWidget):
         is_screen_out = (self.tab_name == "Screen Output Control")
         is_profile_out = (self.tab_name == "Profile Output Control")
         is_spreadsheet_out = (self.tab_name == "Spreadsheet Output Control")
+        is_dsi_out = (self.tab_name == "DSI W2Linkage Control")
         extra_cols = 0
         if is_snapshot_out or is_screen_out:
             # Determine extra columns from NS count values (max across columns)
@@ -242,18 +243,32 @@ class TabularDataTab(QWidget):
                 extra_cols = max(0, (max_nspr * max_nispr) - 1)
             except Exception:
                 extra_cols = 0
+        elif is_dsi_out:
+            # Determine extra columns from NVPL (minus 1 base column)
+            try:
+                nvpl_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NVPL"), 1)
+                max_nvpl = 1
+                for c in range(self.table.columnCount()):
+                    w = self.table.cellWidget(nvpl_index, c)
+                    if isinstance(w, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            max_nvpl = max(max_nvpl, int(w.value()))
+                        except Exception:
+                            pass
+                extra_cols = max(0, max_nvpl - 1)
+            except Exception:
+                extra_cols = 0
         
-        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out or is_profile_out or is_spreadsheet_out) else 0)
+        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out or is_profile_out or is_spreadsheet_out or is_dsi_out) else 0)
         self.table.setColumnCount(total_columns)
         
-        # Use stored tab name for correct headers
+        # Headers
         if self.tab_name in ["Timestep Limitations", "Waterbody Definition", "Calculations", "Dead Sea", 
                              "Heat Exchange", "Ice Cover", "Transport Scheme", "Hydaulic Coefficients", "Vertical Eddy Viscosity"]:
             column_headers = [f"WB{i+1}" for i in range(num_columns)]
         elif self.tab_name in ["Branch Geometry", "Initial Conditions", "Interpolation", "Structures", "Distributed Tributaries"]:
             column_headers = [f"BR{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Tributary":
-            # Build headers TR# (Name) using TRNAME row if present
             names = [""] * num_columns
             trname_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "TRNAME"), None)
             if trname_index is not None:
@@ -263,24 +278,22 @@ class TabularDataTab(QWidget):
                         names[col_index] = name_widget.text().strip()
             column_headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_columns)]
         elif is_hydro_out:
-            # First 3 fixed columns then HPRWBC# columns for each waterbody
             column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
         elif is_snapshot_out or is_screen_out:
-            # First column name is SNP for snapshot/screen; extra columns have no headers
             column_headers = ["SNP"] + [""] * (total_columns - 1)
         elif is_profile_out:
             column_headers = ["PRFC"] + [""] * (total_columns - 1)
         elif is_spreadsheet_out:
             column_headers = ["SPR"] + [""] * (total_columns - 1)
+        elif is_dsi_out:
+            column_headers = ["CPL"] + [""] * (total_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
-            
         self.table.setHorizontalHeaderLabels(column_headers)
         
-        # Populate each cell with the appropriate widget type
+        # Populate cells
         for row_index, row_def in enumerate(self.row_definitions):
             for col_index in range(total_columns):
-                # Clear any existing widget or item to avoid mixed cell content when types change
                 try:
                     self.table.removeCellWidget(row_index, col_index)
                 except Exception:
@@ -290,30 +303,30 @@ class TabularDataTab(QWidget):
                 except Exception:
                     pass
                 
-                if is_spreadsheet_out:
+                if is_dsi_out:
                     if col_index == 0:
-                        # For first column, leave declared type; ensure NSPR/NISPR min=1 and dynamic update
-                        if row_def.get("label") in ("NSPR", "NISPR"):
-                            sspin = QSpinBox()
-                            sspin.setMinimum(1)
-                            sspin.setMaximum(row_def.get("max", 999999))
+                        # For first column, leave declared type; ensure NVPL min=1 and dynamic update
+                        if row_def.get("label") == "NVPL":
+                            nv = QSpinBox()
+                            nv.setMinimum(1)
+                            nv.setMaximum(row_def.get("max", 999999))
                             try:
-                                if sspin.value() < 1:
-                                    sspin.setValue(1)
-                                sspin.valueChanged.connect(self._on_numeric_value_changed)
-                                sspin.valueChanged.connect(self.structureChanged.emit)
+                                if nv.value() < 1:
+                                    nv.setValue(1)
+                                nv.valueChanged.connect(self._on_numeric_value_changed)
+                                nv.valueChanged.connect(self.structureChanged.emit)
                             except Exception:
                                 pass
-                            self.table.setCellWidget(row_index, col_index, sspin)
+                            self.table.setCellWidget(row_index, col_index, nv)
                             continue
                     else:
-                        # Extra columns: first three rows (SPRC, NSPR, NISPR) uneditable; SPRD/SPRF numeric 2 decimals; ISPR integer
-                        if row_index in (0, 1, 2):
+                        # Extra columns: first two rows (VPLC, NVPL) uneditable and blank; VPLD/VPLF get numeric editors
+                        if row_index in (0, 1):
                             item = QTableWidgetItem("")
                             item.setFlags(Qt.ItemFlag.ItemIsEnabled)
                             self.table.setItem(row_index, col_index, item)
                             continue
-                        if row_index in (3, 4):
+                        if row_index in (2, 3):
                             spin = QDoubleSpinBox()
                             spin.setDecimals(2)
                             spin.setMinimum(0.0)
@@ -324,17 +337,7 @@ class TabularDataTab(QWidget):
                                 pass
                             self.table.setCellWidget(row_index, col_index, spin)
                             continue
-                        if row_index == 5:
-                            spn = QSpinBox()
-                            spn.setMinimum(0)
-                            spn.setMaximum(999999)
-                            try:
-                                spn.valueChanged.connect(self._on_numeric_value_changed)
-                            except Exception:
-                                pass
-                            self.table.setCellWidget(row_index, col_index, spn)
-                            continue
-                
+
                 if is_hydro_out:
                     # Column-specific behavior for Hydrodynamic Output Control
                     if col_index == 0:
@@ -513,6 +516,8 @@ class TabularDataTab(QWidget):
             column_headers = ["PRFC"] + [""] * (num_columns - 1)
         elif self.tab_name == "Spreadsheet Output Control":
             column_headers = ["SPR"] + [""] * (num_columns - 1)
+        elif self.tab_name == "DSI W2Linkage Control":
+            column_headers = ["CPL"] + [""] * (num_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -1161,6 +1166,15 @@ class CompactApp(QWidget):
                     {"label": "ISPR", "type": "numeric", "description": "Placeholder: ISPR description"}
                 ]
             },
+            "DSI W2Linkage Control": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "VPLC", "type": "checkbox", "description": "Placeholder: VPLC description"},
+                    {"label": "NVPL", "type": "numeric", "description": "Placeholder: NVPL description"},
+                    {"label": "VPLD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: VPLD description"},
+                    {"label": "VPLF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: VPLF description"}
+                ]
+            },
         }
         self.initUI()
         self.load_gui_state()
@@ -1193,6 +1207,8 @@ class CompactApp(QWidget):
             ordered_titles += ["Profile Output Control"]
         if "Spreadsheet Output Control" in self.tab_data:
             ordered_titles += ["Spreadsheet Output Control"]
+        if "DSI W2Linkage Control" in self.tab_data:
+            ordered_titles += ["DSI W2Linkage Control"]
         for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
@@ -1218,6 +1234,9 @@ class CompactApp(QWidget):
         # Connect NSPR/NISPR changes to update Spreadsheet Output Control dynamically
         if isinstance(self.tabs.get("Spreadsheet Output Control"), TabularDataTab):
             self.tabs["Spreadsheet Output Control"].structureChanged.connect(self.update_spreadsheet_columns)
+        # Connect NVPL changes to update DSI W2Linkage Control dynamically
+        if isinstance(self.tabs.get("DSI W2Linkage Control"), TabularDataTab):
+            self.tabs["DSI W2Linkage Control"].structureChanged.connect(self.update_dsi_columns)
         
         self.tab_list.currentRowChanged.connect(self.sync_tabs)
 
@@ -1365,6 +1384,13 @@ class CompactApp(QWidget):
                 current_data = spreadsheet_tab.get_data()
                 spreadsheet_tab.set_columns(1)
                 spreadsheet_tab.set_data(current_data)
+
+            # Initialize DSI W2Linkage Control with one base column and let NVPL drive extras
+            dsi_tab = self.tabs.get("DSI W2Linkage Control")
+            if dsi_tab and isinstance(dsi_tab, TabularDataTab):
+                current_data = dsi_tab.get_data()
+                dsi_tab.set_columns(1)
+                dsi_tab.set_data(current_data)
 
             # Sync all NPI-dependent tabs
             npi_tabs = ["Pipes"]
@@ -1583,6 +1609,25 @@ class CompactApp(QWidget):
         finally:
             self._spreadsheet_updating = False
 
+    def update_dsi_columns(self):
+        """Rebuild columns for DSI W2Linkage Control when NVPL changes without re-syncing other tabs."""
+        if getattr(self, "_dsi_updating", False):
+            return
+        self._dsi_updating = True
+        try:
+            if getattr(self, "_sync_in_progress", False):
+                return
+            dsi_tab = self.tabs.get("DSI W2Linkage Control")
+            if dsi_tab and isinstance(dsi_tab, TabularDataTab):
+                try:
+                    current_data = dsi_tab.get_data()
+                    dsi_tab.set_columns(1)
+                    dsi_tab.set_data(current_data)
+                except Exception:
+                    pass
+        finally:
+            self._dsi_updating = False
+
     def display_tab(self, item: QListWidgetItem):
         self.sync_tabs()
         tab_name = item.text()
@@ -1640,6 +1685,9 @@ class CompactApp(QWidget):
                                 elif tab_name == "Spreadsheet Output Control":
                                     num_cols = len(tabular_data[0]) - 1
                                     headers = ["SPR"] + [""] * (num_cols - 1)
+                                elif tab_name == "DSI W2Linkage Control":
+                                    num_cols = len(tabular_data[0]) - 1
+                                    headers = ["CPL"] + [""] * (num_cols - 1)
                                 else:
                                     headers = []
                                 writer.writerow(headers)
