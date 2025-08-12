@@ -179,6 +179,7 @@ class TabularDataTab(QWidget):
         is_profile_out = (self.tab_name == "Profile Output Control")
         is_spreadsheet_out = (self.tab_name == "Spreadsheet Output Control")
         is_dsi_out = (self.tab_name == "DSI W2Linkage Control")
+        is_contour_out = (self.tab_name == "Contour Plot Output Control")
         extra_cols = 0
         if is_snapshot_out or is_screen_out:
             # Determine extra columns from NS count values (max across columns)
@@ -258,8 +259,23 @@ class TabularDataTab(QWidget):
                 extra_cols = max(0, max_nvpl - 1)
             except Exception:
                 extra_cols = 0
+        elif is_contour_out:
+            # Determine extra columns from NCPL (minus 1 base column)
+            try:
+                ncpl_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NCPL"), 1)
+                max_ncpl = 1
+                for c in range(self.table.columnCount()):
+                    w = self.table.cellWidget(ncpl_index, c)
+                    if isinstance(w, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            max_ncpl = max(max_ncpl, int(w.value()))
+                        except Exception:
+                            pass
+                extra_cols = max(0, max_ncpl - 1)
+            except Exception:
+                extra_cols = 0
         
-        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out or is_profile_out or is_spreadsheet_out or is_dsi_out) else 0)
+        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if (is_snapshot_out or is_screen_out or is_profile_out or is_spreadsheet_out or is_dsi_out or is_contour_out) else 0)
         self.table.setColumnCount(total_columns)
         
         # Headers
@@ -287,6 +303,8 @@ class TabularDataTab(QWidget):
             column_headers = ["SPR"] + [""] * (total_columns - 1)
         elif is_dsi_out:
             column_headers = ["W2L"] + [""] * (total_columns - 1)
+        elif is_contour_out:
+            column_headers = ["CPL"] + [""] * (total_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -517,6 +535,8 @@ class TabularDataTab(QWidget):
         elif self.tab_name == "Spreadsheet Output Control":
             column_headers = ["SPR"] + [""] * (num_columns - 1)
         elif self.tab_name == "DSI W2Linkage Control":
+            column_headers = ["CPL"] + [""] * (num_columns - 1)
+        elif self.tab_name == "Contour Plot Output Control":
             column_headers = ["CPL"] + [""] * (num_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
@@ -1175,6 +1195,16 @@ class CompactApp(QWidget):
                     {"label": "VPLF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: VPLF description"}
                 ]
             },
+            "Contour Plot Output Control": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "CPLC", "type": "checkbox", "description": "Placeholder: CPLC description"},
+                    {"label": "NCPL", "type": "numeric", "description": "Placeholder: NCPL description"},
+                    {"label": "TECPLOT", "type": "checkbox", "description": "Placeholder: TECPLOT toggle"},
+                    {"label": "CPLD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: CPLD description"},
+                    {"label": "CPLF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: CPLF description"}
+                ]
+            },
         }
         self.initUI()
         self.load_gui_state()
@@ -1189,7 +1219,7 @@ class CompactApp(QWidget):
         self.tabs = {}
         # Build tabs; ensure Tributary and Distributed Tributaries are added last for display ordering
         titles = list(self.tab_data.keys())
-        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control", "Snapshot Output Control", "Screen Output Control", "Profile Output Control", "Spreadsheet Output Control", "DSI W2Linkage Control"]:
+        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control", "Snapshot Output Control", "Screen Output Control", "Profile Output Control", "Spreadsheet Output Control", "DSI W2Linkage Control", "Contour Plot Output Control"]:
             if last_tab in titles:
                 titles.remove(last_tab)
         ordered_titles = titles
@@ -1209,6 +1239,8 @@ class CompactApp(QWidget):
             ordered_titles += ["Spreadsheet Output Control"]
         if "DSI W2Linkage Control" in self.tab_data:
             ordered_titles += ["DSI W2Linkage Control"]
+        if "Contour Plot Output Control" in self.tab_data:
+            ordered_titles += ["Contour Plot Output Control"]
         for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
@@ -1688,6 +1720,9 @@ class CompactApp(QWidget):
                                 elif tab_name == "DSI W2Linkage Control":
                                     num_cols = len(tabular_data[0]) - 1
                                     headers = ["W2L"] + [""] * (num_cols - 1)
+                                elif tab_name == "Contour Plot Output Control":
+                                    num_cols = len(tabular_data[0]) - 1
+                                    headers = ["CPL"] + [""] * (num_cols - 1)
                                 else:
                                     headers = []
                                 writer.writerow(headers)
