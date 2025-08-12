@@ -174,7 +174,26 @@ class TabularDataTab(QWidget):
         num_columns = max(1, num_columns)
 
         is_hydro_out = (self.tab_name == "Hydrodynamic Output Control")
-        total_columns = num_columns + 3 if is_hydro_out else num_columns
+        is_snapshot_out = (self.tab_name == "Snapshot Output Control")
+        extra_cols = 0
+        if is_snapshot_out:
+            # Determine extra columns from NSCR (row index 1) values (max across columns)
+            try:
+                nscr_index = next((idx for idx, rd in enumerate(self.row_definitions) if rd.get("label") == "NSCR"), 1)
+                max_nscr = 0
+                # Check existing widgets in NSCR row for a value
+                for c in range(self.table.columnCount()):
+                    w = self.table.cellWidget(nscr_index, c)
+                    if isinstance(w, (QSpinBox, QDoubleSpinBox)):
+                        try:
+                            max_nscr = max(max_nscr, int(w.value()))
+                        except Exception:
+                            pass
+                extra_cols = max(0, max_nscr)
+            except Exception:
+                extra_cols = 0
+        
+        total_columns = (num_columns + 3 if is_hydro_out else num_columns) + (extra_cols if is_snapshot_out else 0)
         self.table.setColumnCount(total_columns)
         
         # Use stored tab name for correct headers
@@ -196,6 +215,9 @@ class TabularDataTab(QWidget):
         elif is_hydro_out:
             # First 3 fixed columns then HPRWBC# columns for each waterbody
             column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
+        elif is_snapshot_out:
+            # First column name is SCR; extra columns have no headers
+            column_headers = ["SCR"] + [""] * (total_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
             
@@ -250,6 +272,32 @@ class TabularDataTab(QWidget):
                     item.setCheckState(Qt.CheckState.Unchecked)
                     self.table.setItem(row_index, col_index, item)
                     continue
+                
+                if is_snapshot_out:
+                    # First original column uses declared type; extra columns only apply to SCRD and SCRF rows (row 2 and 3)
+                    if col_index == 0:
+                        # Use declared types for first column
+                        pass
+                    else:
+                        # Extra columns: first two rows (SCRC, NSCR) uneditable and blank; SCRD/SCRF get numeric editors
+                        if row_index in (0, 1):
+                            # Place a disabled item
+                            item = QTableWidgetItem("")
+                            item.setFlags(Qt.ItemFlag.ItemIsEnabled)  # not editable
+                            self.table.setItem(row_index, col_index, item)
+                            continue
+                        if row_index in (2, 3):
+                            spin = QDoubleSpinBox()
+                            spin.setDecimals(2)
+                            spin.setMinimum(0.0)
+                            spin.setMaximum(999999.0)
+                            try:
+                                spin.valueChanged.connect(self._on_numeric_value_changed)
+                            except Exception:
+                                pass
+                            self.table.setCellWidget(row_index, col_index, spin)
+                            continue
+                    # If falling through for first column, handled below as default
                 
                 # Default behavior for all other tabs
                 cell_type = row_def.get("type", "checkbox")
@@ -345,6 +393,8 @@ class TabularDataTab(QWidget):
                 column_headers = [f"TR{i+1} ({names[i]})" if names[i] else f"TR{i+1}" for i in range(num_columns)]
         elif self.tab_name == "Hydrodynamic Output Control":
             column_headers = ["HNAME", "FMTH", "HMULT"] + [f"HPRWBC{i+1}" for i in range(num_columns)]
+        elif self.tab_name == "Snapshot Output Control":
+            column_headers = ["SCR"] + [""] * (num_columns - 1)
         else:
             column_headers = [f"Col{i+1}" for i in range(num_columns)]
         self.table.setHorizontalHeaderLabels(column_headers)
@@ -949,6 +999,15 @@ class CompactApp(QWidget):
                     {"label": "DTRC", "type": "checkbox", "description": "Distributed tributary option, ON or OFF"}
                 ],
                 "columns_from": "NBR"
+            },
+            "Snapshot Output Control": {
+                "type": "tabular",
+                "rows": [
+                    {"label": "SCRC", "type": "checkbox", "description": "Placeholder: SCRC description"},
+                    {"label": "NSCR", "type": "numeric", "description": "Placeholder: NSCR description"},
+                    {"label": "SCRD", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRD description"},
+                    {"label": "SCRF", "type": "numeric", "decimal_places": 2, "description": "Placeholder: SCRF description"}
+                ]
             }
         }
         self.initUI()
@@ -964,7 +1023,7 @@ class CompactApp(QWidget):
         self.tabs = {}
         # Build tabs; ensure Tributary and Distributed Tributaries are added last for display ordering
         titles = list(self.tab_data.keys())
-        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control"]:
+        for last_tab in ["Tributary", "Distributed Tributaries", "Hydrodynamic Output Control", "Snapshot Output Control"]:
             if last_tab in titles:
                 titles.remove(last_tab)
         ordered_titles = titles
@@ -974,6 +1033,8 @@ class CompactApp(QWidget):
             ordered_titles += ["Distributed Tributaries"]
         if "Hydrodynamic Output Control" in self.tab_data:
             ordered_titles += ["Hydrodynamic Output Control"]
+        if "Snapshot Output Control" in self.tab_data:
+            ordered_titles += ["Snapshot Output Control"]
         for title in ordered_titles:
             data = self.tab_data[title]
             if data.get("type") == "tabular":
