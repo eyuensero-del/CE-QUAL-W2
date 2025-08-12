@@ -1168,6 +1168,13 @@ class CompactApp(QWidget):
                     tab.set_columns(max(1, ntr_value))
                     tab.set_data(current_data)
 
+            # Initialize Snapshot Output Control with one base column and let NSCR drive extras
+            snap_tab = self.tabs.get("Snapshot Output Control")
+            if snap_tab and isinstance(snap_tab, TabularDataTab):
+                current_data = snap_tab.get_data()
+                snap_tab.set_columns(1)
+                snap_tab.set_data(current_data)
+
             # Sync all NPI-dependent tabs
             npi_tabs = ["Pipes"]
             for tab_name in npi_tabs:
